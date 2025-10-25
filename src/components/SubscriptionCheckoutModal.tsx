@@ -1,40 +1,33 @@
-
 import React, { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
-  Award,
-  Calendar,
   CheckCircle,
-  ChevronRight,
   CreditCard,
   Crown,
-  DollarSign,
   Gift,
   Percent,
   Shield,
   Sparkles,
-  Star,
   X,
   Zap,
 } from 'lucide-react';
 
 interface SubscriptionCheckoutModalProps {
-   isOpen: boolean;
-   onClose: () => void;
-   selectedPackage: any;
-   billingCycle: 'monthly' | 'yearly';
-   onBillingCycleChange: (cycle: 'monthly' | 'yearly') => void;
- }
+  isOpen: boolean;
+  onClose: () => void;
+  selectedPackage: any;
+  billingCycle: 'monthly' | 'yearly';
+  onBillingCycleChange: (cycle: 'monthly' | 'yearly') => void;
+}
 
 interface PaymentMethod {
   id: string;
@@ -58,377 +51,218 @@ const paymentMethods: PaymentMethod[] = [
   { id: 'youssr', name: 'يوسر', icon: '/data/payment/youssr.png', description: 'خدمات مالية إلكترونية' },
 ];
 
+function formatTrxDateTime(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  return `${y}${m}${day}${hh}${mm}`;
+}
+
+function getPublicEnv(key: string): string | undefined {
+  const w = (typeof window !== 'undefined' ? (window as any) : {}) || {};
+  const pe: any = (typeof process !== 'undefined' ? (process as any).env : {}) || {};
+  return (
+    pe[`NEXT_PUBLIC_${key}`] ||
+    pe[`VITE_${key}`] ||
+    pe[key] ||
+    w[key]
+  );
+}
+
+function getFirstEnv(...keys: string[]) {
+  for (const k of keys) {
+    const v = getPublicEnv(k);
+    if (v !== undefined && v !== null && v !== '') return v;
+  }
+  return undefined;
+}
+
+function getLightboxSrc(env: string) {
+  return env === 'production'
+    ? 'https://pgw.moamalat.net:6006/lightbox/lightbox.js'
+    : 'https://tnpg.moamalat.net:6006/lightbox/lightbox.js';
+}
+
 export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps> = ({
-   isOpen,
-   onClose,
-   selectedPackage,
-   billingCycle,
-   onBillingCycleChange
- }) => {
+  isOpen,
+  onClose,
+  selectedPackage,
+  billingCycle,
+  onBillingCycleChange,
+}) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [scriptsLoaded, setScriptsLoaded] = useState(false);
+  const [scriptReady, setScriptReady] = useState(false);
 
-  // Calculate pricing
-  const basePrice = selectedPackage ? (billingCycle === 'yearly'
-    ? Math.floor(selectedPackage.yearlyPrice)
-    : selectedPackage.monthlyPrice) : 0;
-
-  const discount = selectedPackage && billingCycle === 'yearly'
-    ? selectedPackage.id === 'lite' ? basePrice * 0.01
-    : selectedPackage.id === 'growth' ? basePrice * 0.03
-    : basePrice * 0.05
-    : 0;
-
+  const basePrice = selectedPackage ? (billingCycle === 'yearly' ? Math.floor(selectedPackage.yearlyPrice) : selectedPackage.monthlyPrice) : 0;
+  const discount = selectedPackage && billingCycle === 'yearly' ? (selectedPackage.id === 'lite' ? basePrice * 0.01 : selectedPackage.id === 'growth' ? basePrice * 0.03 : basePrice * 0.05) : 0;
   const discountedPrice = basePrice - discount;
-  const couponDiscount = appliedCoupon ? discountedPrice * 0.1 : 0; // 10% coupon discount
+  const couponDiscount = appliedCoupon ? discountedPrice * 0.1 : 0;
   const finalPrice = discountedPrice - couponDiscount;
 
   const handleCouponApply = () => {
-    if (couponCode.trim()) {
-      // Simulate coupon validation
-      setAppliedCoupon(couponCode);
-    }
+    if (couponCode.trim()) setAppliedCoupon(couponCode);
   };
 
-  const handlePaymentSelect = (methodId: string) => {
-    setSelectedPaymentMethod(methodId);
-  };
+  const handlePaymentSelect = (methodId: string) => setSelectedPaymentMethod(methodId);
 
   const handleProceedToPayment = () => {
-    if (selectedPaymentMethod === 'moamalat') {
-      setCurrentStep(3);
-    }
+    if (selectedPaymentMethod === 'moamalat') setCurrentStep(3);
   };
 
-  const loadPaymentScripts = useCallback(() => {
-    return new Promise<void>((resolve) => {
-      // Load CryptoJS
-      if (!document.querySelector('script[src*="crypto-js"]')) {
-        const cryptoScript = document.createElement('script');
-        cryptoScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js';
-        cryptoScript.onload = () => {
-          console.log('CryptoJS loaded successfully');
-          loadMoamalatScript(resolve);
-        };
-        cryptoScript.onerror = () => {
-          console.error('Failed to load CryptoJS');
-          loadMoamalatScript(resolve);
-        };
-        document.head.appendChild(cryptoScript);
-      } else {
-        loadMoamalatScript(resolve);
-      }
+  const loadMoamalatScript = useCallback(async () => {
+    const env = (getPublicEnv('MOAMALAT_ENV') || 'sandbox').toLowerCase();
+    const src = getLightboxSrc(env);
+    if (document.querySelector(`script[data-moamalat="${src}"]`)) {
+      setScriptReady(true);
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.dataset.moamalat = src;
+      s.onload = () => {
+        console.log('[Moamalat] Lightbox script loaded:', src);
+        resolve();
+      };
+      s.onerror = () => reject(new Error('Failed to load Moamalat Lightbox script'));
+      document.head.appendChild(s);
     });
+    const started = Date.now();
+    while (!(window as any).Lightbox || !(window as any).Lightbox.Checkout) {
+      if (Date.now() - started > 5000) throw new Error('Lightbox not available within timeout');
+      await new Promise(r => setTimeout(r, 100));
+    }
+    console.log('[Moamalat] Lightbox ready. Available methods:', Object.keys((window as any).Lightbox || {}), 'Checkout:', Object.keys((window as any).Lightbox.Checkout || {}));
+    setScriptReady(true);
   }, []);
 
-  // Load scripts when component mounts and moamalat is selected
   useEffect(() => {
-    if (isOpen && selectedPaymentMethod === 'moamalat' && !scriptsLoaded) {
-      loadPaymentScripts();
-    }
-  }, [isOpen, selectedPaymentMethod, scriptsLoaded, loadPaymentScripts]);
-
-  const loadMoamalatScript = (resolve: () => void) => {
-    if (!document.querySelector('script[src*="lightbox.js"]')) {
-      const lightboxScript = document.createElement('script');
-      lightboxScript.src = 'https://tnpg.moamalat.net:6006/js/lightbox.js';
-      lightboxScript.onload = () => {
-        console.log('Moamalat Lightbox loaded successfully');
-        setScriptsLoaded(true);
-        resolve();
-      };
-      lightboxScript.onerror = () => {
-        console.error('Failed to load Moamalat Lightbox');
-        setScriptsLoaded(true);
-        resolve();
-      };
-      document.head.appendChild(lightboxScript);
-    } else {
-      setScriptsLoaded(true);
-      resolve();
-    }
-  };
-
-  const hexToStr = (hex: string) => {
-    let str = '';
-    for (let i = 0; i < hex.length; i += 2) {
-      str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
-    }
-    return str;
-  };
-
-  const generateSecureHash = (message: string, key: string) => {
-    if (typeof (window as any).CryptoJS !== 'undefined') {
-
-      const hash =  (window as any).CryptoJS.HmacSHA256(message, key).toString().toUpperCase();
-
-      console.log({ message, key, hash });
-      return hash;
-    }
-
-  
-    console.warn('CryptoJS not available, using fallback hash');
-    // Fallback hash generation (for testing only)
-    return 'FALLBACK_HASH_' + Math.random().toString(36).substr(2, 9);
-  };
-const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = false): string => {
-  // 1. Convert seconds to milliseconds (required for JavaScript Date object)
-  if (typeof unixTimestampSeconds !== 'number' || isNaN(unixTimestampSeconds)) {
-    return 'Invalid Timestamp';
-  }
-  const date = new Date(unixTimestampSeconds * 1000);
-
-  // Helper function to pad single digits with a leading zero
-  const pad = (num) => String(num).padStart(2, '0');
-
-  // 2. Extract components based on local or UTC time
-  const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
-  const month = useUTC ? date.getUTCMonth() : date.getMonth();
-  const day = useUTC ? date.getUTCDate() : date.getDate();
-  const hours = useUTC ? date.getUTCHours() : date.getHours();
-  const minutes = useUTC ? date.getMinutes() : date.getMinutes();
-
-  // getMonth() is 0-indexed, so we add 1, then pad
-  const formattedMonth = pad(month + 1);
-  
-  // 3. Construct the final format
-  return `${year}${formattedMonth}${pad(day)}${pad(hours)}${pad(minutes)}`;
-};
-
-
-  const initializeMoamalatPayment = async () => {
-    try {
-      console.log('Starting Moamalat payment initialization...');
-
-      if (!scriptsLoaded) {
-        console.log('Scripts not loaded yet, loading now...');
-        await loadPaymentScripts();
-      }
-
-      // Wait for Lightbox to be available
-      const waitForLightbox = () => {
-        return new Promise<void>((resolve, reject) => {
-          let attempts = 0;
-          const maxAttempts = 50; // 5 seconds max
-
-          const checkLightbox = () => {
-            attempts++;
-            console.log(`Checking for Lightbox... attempt ${attempts}`);
-
-            if (typeof (window as any).Lightbox !== 'undefined' && (window as any).Lightbox.Checkout) {
-              console.log('Lightbox found!');
-              resolve();
-            } else if (attempts >= maxAttempts) {
-              reject(new Error('Lightbox failed to load within timeout'));
-            } else {
-              setTimeout(checkLightbox, 100);
-            }
-          };
-          checkLightbox();
-        });
-      };
-
-      console.log('Waiting for Lightbox to be available...');
-      await waitForLightbox();
-
-      // Use provided Moamalat test credentials
-      const merchantId = '10081014649';
-      const terminalId = '99179395';
-      const secretKey = '3a488a89b3f7993476c252f017c488bb';
-      const Amount = finalPrice; // Use actual final price instead of fixed Amount
-      const merchantReference = 'test-demo';
-      const DateTimeLocalTrxn = '202510252113';
-      const MOAMALATPAY_PRODUCTION = false;
-
-      // Generate current timestamp in required format
-      const now = new Date();
-      const time = formatUnixTimestamp(Math.floor(now.getTime() / 1000));
-      const message = `Amount=${Amount}&TxnDate=${time}&MerchantId=${merchantId}&MerchantReference=${merchantReference}&TerminalId=${terminalId}`;
-      const secureHash = generateSecureHash(message, secretKey);
-
-      console.log('Initializing Moamalat payment with:', {
-        Amount: "100",
-        Currency: "818",
-        merchantId,
-        terminalId,
-        PaidThrough: "Card",
-        PayerAccount: "400000XXXXXX0002",
-        PayerName: "123",
-        ProviderSchemeName: "",
-        SystemReference: "78554",
-        TxnDate: "200917135922",
-        merchantReference,
-        DateTimeLocalTrxn,
-        secureHash,
-        MOAMALATPAY_PRODUCTION,
-        message
+    if (isOpen && selectedPaymentMethod === 'moamalat' && !scriptReady) {
+      loadMoamalatScript().catch((e) => {
+        console.error(e);
+        alert('تعذر تحميل سكربت بوابة معاملات. حاول مرة أخرى.');
       });
-
-      // Check what methods are available on Lightbox
-      console.log('Available Lightbox methods:', Object.keys((window as any).Lightbox));
-      console.log('Available Checkout methods:', Object.keys((window as any).Lightbox.Checkout));
-
-      // Try different configuration approaches
-      let configSuccess = false;
-
-      // Method 1: Try configure as a function
-      if (typeof (window as any).Lightbox.Checkout.configure === 'function') {
-        console.log('Using configure as function');
-        (window as any).Lightbox.Checkout.configure({
-          MID: merchantId,
-          TID: terminalId,
-          AmountTrxn: Amount,
-          MerchantReference: merchantReference,
-          TrxDateTime: time,
-          SecureHash: secureHash,
-          MOAMALATPAY_PRODUCTION,
-          ReturnUrl: window.location.origin + '/payment-success',
-          CallbackUrl: window.location.origin + '/payment-callback',
-          CurrencyCode: 'LYD',
-          completeCallback(data) {
-            console.log('Payment completed successfully:', data);
-            setIsProcessing(false);
-            onClose();
-            setTimeout(() => {
-              alert('تمت عملية الدفع بنجاح! سيتم تفعيل الاشتراك قريباً.');
-            }, 500);
-          },
-          errorCallback(error) {
-            console.log('Payment error occurred:', error);
-            setIsProcessing(false);
-            alert('حدث خطأ في عملية الدفع: ' + (error?.error || error?.message || 'خطأ غير معروف'));
-          },
-          cancelCallback() {
-            console.log('Payment was cancelled by user');
-            setIsProcessing(false);
-          }
-        });
-        configSuccess = true;
-      }
-      // Method 2: Try configure as property assignment
-      else if ((window as any).Lightbox.Checkout.configure) {
-        console.log('Using configure as property assignment');
-        (window as any).Lightbox.Checkout.configure = {
-          MID: merchantId,
-          TID: terminalId,
-          AmountTrxn: Amount,
-          MerchantReference: merchantReference,
-          TrxDateTime: time,
-          SecureHash: secureHash,
-          MOAMALATPAY_PRODUCTION,
-          ReturnUrl: window.location.origin + '/payment-success',
-          CallbackUrl: window.location.origin + '/payment-callback',
-          CurrencyCode: 'LYD',
-          completeCallback(data) {
-            console.log('Payment completed successfully:', data);
-            setIsProcessing(false);
-            onClose();
-            setTimeout(() => {
-              alert('تمت عملية الدفع بنجاح! سيتم تفعيل الاشتراك قريباً.');
-            }, 500);
-          },
-          errorCallback(error) {
-            console.log('Payment error occurred:', error);
-            setIsProcessing(false);
-            alert('حدث خطأ في عملية الدفع: ' + (error?.error || error?.message || 'خطأ غير معروف'));
-          },
-          cancelCallback() {
-            console.log('Payment was cancelled by user');
-            setIsProcessing(false);
-          }
-        };
-        configSuccess = true;
-      }
-      // Method 3: Try direct property assignment on Checkout
-      else {
-        console.log('Using direct property assignment on Checkout');
-        (window as any).Lightbox.Checkout.MID = merchantId;
-        (window as any).Lightbox.Checkout.TID = terminalId;
-        (window as any).Lightbox.Checkout.AmountTrxn = Amount;
-        (window as any).Lightbox.Checkout.MerchantReference = merchantReference;
-        (window as any).Lightbox.Checkout.TrxDateTime = time;
-        (window as any).Lightbox.Checkout.SecureHash = secureHash;
-        (window as any).Lightbox.Checkout.MOAMALATPAY_PRODUCTION = MOAMALATPAY_PRODUCTION;
-        (window as any).Lightbox.Checkout.ReturnUrl = window.location.origin + '/payment-success';
-        (window as any).Lightbox.Checkout.CallbackUrl = window.location.origin + '/payment-callback';
-        (window as any).Lightbox.Checkout.CurrencyCode = 'LYD';
-
-        // Set callbacks
-        (window as any).Lightbox.Checkout.completeCallback = function(data) {
-          console.log('Payment completed successfully:', data);
-          setIsProcessing(false);
-          onClose();
-          setTimeout(() => {
-            alert('تمت عملية الدفع بنجاح! سيتم تفعيل الاشتراك قريباً.');
-          }, 500);
-        };
-        (window as any).Lightbox.Checkout.errorCallback = function(error) {
-          console.log('Payment error occurred:', error);
-          setIsProcessing(false);
-          alert('حدث خطأ في عملية الدفع: ' + (error?.error || error?.message || 'خطأ غير معروف'));
-        };
-        (window as any).Lightbox.Checkout.cancelCallback = function() {
-          console.log('Payment was cancelled by user');
-          setIsProcessing(false);
-        };
-
-        configSuccess = true;
-      }
-
-      if (!configSuccess) {
-        throw new Error('Could not configure Lightbox - no suitable configuration method found');
-      }
-
-      console.log('Lightbox configured successfully, showing lightbox...');
-
-      // Verify showLightbox method exists
-      if (typeof (window as any).Lightbox.Checkout.showLightbox !== 'function') {
-        throw new Error('Lightbox.Checkout.showLightbox is not a function');
-      }
-
-      // Small delay to ensure everything is ready
-      setTimeout(() => {
-        try {
-          console.log('Calling showLightbox...');
-          (window as any).Lightbox.Checkout.showLightbox();
-          console.log('showLightbox called successfully');
-        } catch (error) {
-          console.error('Error showing lightbox:', error);
-          setIsProcessing(false);
-          alert('حدث خطأ في فتح بوابة الدفع: ' + ((error as Error).message || 'خطأ غير معروف'));
-        }
-      }, 1000);
-
-    } catch (error) {
-      console.error('Payment initialization failed:', error);
-      setIsProcessing(false);
-      alert('فشل في تهيئة بوابة الدفع: ' + ((error as Error).message || 'خطأ غير معروف'));
     }
-  };
+  }, [isOpen, selectedPaymentMethod, scriptReady, loadMoamalatScript]);
+
+  async function initializeMoamalatPayment() {
+    console.log('[Moamalat] Initializing payment...');
+    if (!scriptReady) await loadMoamalatScript();
+
+    let MID = getFirstEnv('MOAMALAT_MID', 'MOAMALATPAY_MID');
+    let TID = getFirstEnv('MOAMALAT_TID', 'MOAMALATPAY_TID');
+    let ENV = (() => {
+      const e = getPublicEnv('MOAMALAT_ENV');
+      if (e) return e.toLowerCase();
+      const prod = getPublicEnv('MOAMALATPAY_PRODUCTION');
+      return String(prod).toLowerCase() === 'true' ? 'production' : 'sandbox';
+    })();
+
+    if (!MID || !TID) {
+      try {
+        const resp = await fetch('/api/moamalat/public');
+        if (resp.ok) {
+          const data = await resp.json();
+          MID = data.MID || MID;
+          TID = data.TID || TID;
+          ENV = (data.ENV || ENV || 'sandbox').toLowerCase();
+          console.log('[Moamalat] Loaded MID/TID from server');
+        }
+      } catch (e) {
+        // ignore, fallback to throwing below if still missing
+      }
+    }
+
+    if (!MID || !TID) {
+      throw new Error('بيانات التاجر غير متوفرة (MID/TID)');
+    }
+
+    const AmountTrxn = String(Math.round(Number(finalPrice)));
+    const TrxDateTime = formatTrxDateTime(new Date());
+    const MerchantReference = `SUB-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    const payloadForHash = { AmountTrxn, MerchantReference, TrxDateTime, MID, TID };
+    console.log('[Moamalat] Config (no hash):', {
+      ...payloadForHash,
+      CurrencyCode: '434',
+      MOAMALATPAY_PRODUCTION: ENV === 'production',
+      ReturnUrl: `${window.location.origin}/payment-success`,
+      CallbackUrl: `${window.location.origin}/payment-callback`,
+    });
+
+    const apiBase = '';
+    const res = await fetch(`${apiBase}/api/moamalat/hash`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payloadForHash),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`فشل توليد التوقيع من الخادم: ${txt}`);
+    }
+    const { secureHash } = await res.json();
+    if (!secureHash) throw new Error('لم يتم استلام secureHash من الخادم');
+    console.log('[Moamalat] secureHash preview:', String(secureHash).slice(0, 6) + '…');
+
+    const config = {
+      MID,
+      TID,
+      AmountTrxn,
+      MerchantReference,
+      TrxDateTime,
+      SecureHash: secureHash,
+      CurrencyCode: '434',
+      MOAMALATPAY_PRODUCTION: ENV === 'production',
+      ReturnUrl: `${window.location.origin}/payment-success`,
+      CallbackUrl: `${window.location.origin}/payment-callback`,
+      completeCallback(data: any) {
+        console.log('[Moamalat] complete:', data);
+        setIsProcessing(false);
+        onClose();
+        setTimeout(() => alert('تمت عملية الدفع بنجاح! سيتم تفعيل الاشتراك قريباً.'), 400);
+      },
+      errorCallback(err: any) {
+        console.error('[Moamalat] error:', err);
+        setIsProcessing(false);
+        alert('حدث خطأ في عملية الدفع: ' + (err?.error || err?.message || 'خطأ غير معروف'));
+      },
+      cancelCallback() {
+        console.warn('[Moamalat] cancelled by user');
+        setIsProcessing(false);
+      },
+    } as any;
+
+    (window as any).Lightbox.Checkout.configure(config);
+    console.log('[Moamalat] Configured. Opening lightbox...');
+    (window as any).Lightbox.Checkout.showLightbox();
+    console.log('[Moamalat] showLightbox called');
+  }
 
   const handlePaymentComplete = async () => {
     if (selectedPaymentMethod === 'moamalat') {
       setIsProcessing(true);
       try {
         await initializeMoamalatPayment();
-      } catch (error) {
-        console.error('Payment initialization failed:', error);
+      } catch (error: any) {
+        console.error('[Moamalat] init failed:', error);
         setIsProcessing(false);
-        alert('فشل في تهيئة بوابة الدفع. يرجى المحاولة مرة أخرى.');
+        alert('فشل في تهيئة بوابة الدفع: ' + (error?.message || 'خطأ غير معروف'));
       }
     } else {
       setIsProcessing(true);
-      // Simulate payment processing for other methods
       setTimeout(() => {
         setIsProcessing(false);
         onClose();
-        setTimeout(() => {
-          alert('تمت عملية الدفع بنجاح! سيتم تفعيل الاشتراك قريباً.');
-        }, 500);
+        setTimeout(() => alert('تمت عملية الدفع بنجاح! سيتم تفعيل الاشتراك قريباً.'), 400);
       }, 3000);
     }
   };
@@ -442,9 +276,7 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
   };
 
   useEffect(() => {
-    if (!isOpen) {
-      resetModal();
-    }
+    if (!isOpen) resetModal();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -462,17 +294,15 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           className="relative max-w-4xl w-full max-h-[90vh] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Background Effects */}
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-700 rounded-3xl"></div>
           <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-48 translate-x-48 animate-pulse"></div>
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-br from-white/5 to-transparent rounded-full translate-y-32 -translate-x-32 animate-pulse"></div>
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-full animate-pulse"></div>
 
-          {/* Close Button */}
           <button
             onClick={onClose}
             className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-all duration-300"
@@ -480,7 +310,6 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
             <X className="h-5 w-5" />
           </button>
 
-          {/* Progress Indicator */}
           <div className="relative z-10 p-6">
             <div className="flex items-center justify-center mb-6">
               <div className="flex items-center space-x-4 rtl:space-x-reverse">
@@ -514,19 +343,11 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
             </div>
           </div>
 
-          {/* Content */}
           <div className="relative z-10 px-6 pb-6 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <Card className="bg-white/95 backdrop-blur-md border-0 shadow-2xl">
               <CardContent className="p-8">
-
-                {/* Step 1: Purchase Summary */}
                 {currentStep === 1 && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
+                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                     <div className="text-center mb-8">
                       <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                         <Crown className="h-8 w-8 text-white" />
@@ -537,27 +358,20 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                       <p className="text-gray-600">مراجعة تفاصيل الاشتراك</p>
                     </div>
 
-                    {/* Billing Cycle Toggle */}
                     <div className="flex items-center justify-center gap-4 mb-6 p-4 bg-gray-50 rounded-xl">
                       <span className={`text-sm font-medium ${billingCycle === 'monthly' ? 'text-indigo-600' : 'text-gray-500'}`}>شهري</span>
-                      <Switch
-                        checked={billingCycle === 'yearly'}
-                        onCheckedChange={(checked) => onBillingCycleChange(checked ? 'yearly' : 'monthly')}
-                        className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-indigo-500 data-[state=checked]:to-purple-500"
-                      />
+                      <Switch checked={billingCycle === 'yearly'} onCheckedChange={(checked) => onBillingCycleChange(checked ? 'yearly' : 'monthly')} className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-indigo-500 data-[state=checked]:to-purple-500" />
                       <span className={`text-sm font-medium ${billingCycle === 'yearly' ? 'text-indigo-600' : 'text-gray-500'}`}>سنوي</span>
                       {billingCycle === 'yearly' && (
                         <Badge className="bg-green-100 text-green-800 text-xs">وفر {selectedPackage?.id === 'lite' ? '1%' : selectedPackage?.id === 'growth' ? '3%' : '5%'}</Badge>
                       )}
                     </div>
 
-                    {/* Pricing Breakdown */}
                     <div className="space-y-4">
                       <div className="flex justify-between items-center p-4 bg-gray-50 rounded-xl">
                         <span className="text-gray-700">السعر الأساسي ({billingCycle === 'yearly' ? 'سنوي' : 'شهري'})</span>
                         <span className="font-bold text-lg">{basePrice} د.ل</span>
                       </div>
-
                       {discount > 0 && (
                         <div className="flex justify-between items-center p-4 bg-green-50 rounded-xl border border-green-200">
                           <span className="text-green-700 flex items-center gap-2">
@@ -568,22 +382,11 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                         </div>
                       )}
 
-                      {/* Coupon Section */}
                       <div className="space-y-3">
                         <Label htmlFor="coupon" className="text-gray-700 font-medium">كوبون تخفيض</Label>
                         <div className="flex gap-2">
-                          <Input
-                            id="coupon"
-                            placeholder="أدخل رمز الكوبون"
-                            value={couponCode}
-                            onChange={(e) => setCouponCode(e.target.value)}
-                            className="flex-1"
-                          />
-                          <Button
-                            onClick={handleCouponApply}
-                            variant="outline"
-                            className="px-6"
-                          >
+                          <Input id="coupon" placeholder="أدخل رمز الكوبون" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} className="flex-1" />
+                          <Button onClick={handleCouponApply} variant="outline" className="px-6">
                             <Gift className="h-4 w-4 mr-2" />
                             تطبيق
                           </Button>
@@ -617,13 +420,8 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                     </div>
 
                     <div className="flex justify-end gap-4 pt-6">
-                      <Button variant="outline" onClick={onClose}>
-                        إلغاء
-                      </Button>
-                      <Button
-                        onClick={() => setCurrentStep(2)}
-                        className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
-                      >
+                      <Button variant="outline" onClick={onClose}>إلغاء</Button>
+                      <Button onClick={() => setCurrentStep(2)} className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700">
                         استمرار
                         <ArrowRight className="h-4 w-4 mr-2" />
                       </Button>
@@ -631,44 +429,24 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                   </motion.div>
                 )}
 
-                {/* Step 2: Payment Methods */}
                 {currentStep === 2 && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
+                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                     <div className="text-center mb-8">
                       <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                         <CreditCard className="h-8 w-8 text-white" />
                       </div>
-                      <h2 className="text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-700 bg-clip-text text-transparent mb-2">
-                        اختر طريقة الدفع
-                      </h2>
+                      <h2 className="text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-700 bg-clip-text text-transparent mb-2">اختر طريقة الدفع</h2>
                       <p className="text-gray-600">اختر الطريقة الأنسب لك من الخيارات المتاحة</p>
                     </div>
 
                     <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-8">
                       {paymentMethods.map((method) => (
-                        <motion.div
-                          key={method.id}
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.85 }}
-                          className={`relative p-8 rounded-3xl cursor-pointer transition-all duration-300 ${
-                            selectedPaymentMethod === method.id
-                              ? 'border-4 border-green-500 bg-green-50 shadow-2xl'
-                              : 'border-2 border-gray-200 hover:border-gray-400 hover:shadow-xl bg-white'
-                          }`}
-                          onClick={() => handlePaymentSelect(method.id)}
-                        >
+                        <motion.div key={method.id} whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.85 }} className={`relative p-8 rounded-3xl cursor-pointer transition-all duration-300 ${
+                          selectedPaymentMethod === method.id ? 'border-4 border-green-500 bg-green-50 shadow-2xl' : 'border-2 border-gray-200 hover:border-gray-400 hover:shadow-xl bg-white'
+                        }`} onClick={() => handlePaymentSelect(method.id)}>
                           <div className="text-center">
                             <div className="w-20 h-20 mx-auto bg-white rounded-3xl flex items-center justify-center shadow-lg border border-gray-100">
-                              <img
-                                src={method.icon}
-                                alt={method.name}
-                                className="w-16 h-16 object-contain"
-                              />
+                              <img src={method.icon} alt={method.name} className="w-16 h-16 object-contain" />
                             </div>
                           </div>
                           {selectedPaymentMethod === method.id && (
@@ -685,11 +463,7 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         رجوع
                       </Button>
-                      <Button
-                        onClick={handleProceedToPayment}
-                        disabled={!selectedPaymentMethod}
-                        className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50"
-                      >
+                      <Button onClick={handleProceedToPayment} disabled={!selectedPaymentMethod} className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50">
                         استمرار
                         <ArrowRight className="h-4 w-4 mr-2" />
                       </Button>
@@ -697,32 +471,20 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                   </motion.div>
                 )}
 
-                {/* Step 3: Payment Gateway */}
                 {currentStep === 3 && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
+                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                     <div className="text-center mb-8">
                       <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                         <Shield className="h-8 w-8 text-white" />
                       </div>
-                      <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent mb-2">
-                        بوابة الدفع الإلكتروني
-                      </h2>
+                      <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent mb-2">بوابة الدفع الإلكتروني</h2>
                       <p className="text-gray-600">البوابة الوطنية للمدفوعات الإلكترونية في ليبيا</p>
                     </div>
 
                     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-2xl border border-blue-200 shadow-xl">
                       <div className="text-center space-y-6">
                         <div className="w-24 h-24 mx-auto bg-white rounded-2xl flex items-center justify-center shadow-xl border border-blue-100">
-                          <img
-                            src="/data/payment/moamalat.png"
-                            alt="معاملات"
-                            className="w-16 h-16 object-contain"
-                          />
+                          <img src="/data/payment/moamalat.png" alt="معاملات" className="w-16 h-16 object-contain" />
                         </div>
                         <h3 className="text-2xl font-bold text-blue-900">معاملات</h3>
                         <p className="text-blue-700 text-lg">البوابة الوطنية الليبية للمدفوعات الإلكترونية</p>
@@ -736,21 +498,6 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                             <span className="text-gray-700 font-medium">رسوم المعالجة:</span>
                             <span className="text-green-600 font-semibold">مجاناً</span>
                           </div>
-                        </div>
-
-                        <div className="text-sm text-gray-600 space-y-3 bg-white/50 p-4 rounded-lg">
-                          <p className="flex items-center justify-center gap-2">
-                            <span className="text-xl">🔒</span>
-                            <span>جميع المعاملات محمية ومشفرة</span>
-                          </p>
-                          <p className="flex items-center justify-center gap-2">
-                            <span className="text-xl">⚡</span>
-                            <span>معالجة فورية للمدفوعات</span>
-                          </p>
-                          <p className="flex items-center justify-center gap-2">
-                            <span className="text-xl">📱</span>
-                            <span>متوافق مع جميع الأجهزة</span>
-                          </p>
                         </div>
                       </div>
                     </div>
@@ -770,11 +517,7 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         رجوع
                       </Button>
-                      <Button
-                        onClick={handlePaymentComplete}
-                        disabled={isProcessing}
-                        className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50"
-                      >
+                      <Button onClick={handlePaymentComplete} disabled={isProcessing} className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50">
                         {isProcessing ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -789,12 +532,9 @@ const formatUnixTimestamp = (unixTimestampSeconds: number, useUTC: boolean = fal
                       </Button>
                     </div>
 
-                    <div className="text-center text-xs text-gray-500">
-                      بوابة معاملات - البوابة الوطنية للمدفوعات الإلكترونية في ليبيا
-                    </div>
+                    <div className="text-center text-xs text-gray-500">بوابة معاملات - البوابة الوطنية للمدفوعات الإلكترونية في ليبيا</div>
                   </motion.div>
                 )}
-
               </CardContent>
             </Card>
           </div>
