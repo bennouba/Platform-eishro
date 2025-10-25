@@ -9,40 +9,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { SubscriptionCheckoutModal } from './SubscriptionCheckoutModal';
 import {
-  Crown,
-  Star,
-  CheckCircle,
-  AlertCircle,
+  Award,
   Bell,
   Calendar,
-  CreditCard,
-  Users,
-  TrendingUp,
-  Shield,
-  Zap,
-  Award,
-  Clock,
-  Settings,
-  Gift,
-  Smartphone,
-  Globe,
-  HeadphonesIcon,
-  Building,
+  CheckCircle,
   ChevronRight,
+  Clock,
+  Crown,
   Mail,
   MessageSquare,
   Phone,
-  ToggleLeft,
-  ToggleRight,
+  Settings,
   Sparkles,
-  Rocket,
-  Gem,
-  Heart,
-  ShoppingCart,
+  Star,
   Timer,
-  Percent,
-  Calculator,
+  ToggleLeft,
+  TrendingUp,
 } from 'lucide-react';
 
 interface SubscriptionManagementViewProps {
@@ -58,7 +42,9 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
 }) => {
   const [activeTab, setActiveTab] = useState('الباقات');
   const [isSubscriptionEnabled, setIsSubscriptionEnabled] = useState(true);
-  const [billingCycle, setBillingCycle] = useState('monthly');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<any>(null);
 
   // Current subscription data
   const currentSubscription = {
@@ -82,14 +68,18 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
   const packages = [
     {
       id: 'lite',
-      name: 'إشرو لايت',
+      name: 'لايت',
       monthlyPrice: 400,
-      yearlyPrice: 4320,
+      yearlyPrice: 400 * 12 * 0.99, // 1% discount
       popular: false,
       features: [
-        'متجر إلكتروني كامل',
-        'حتى 100 منتج',
-        'واجهات متجر قابلة للتخصيص',
+        'متجر إلكتروني احترافي',
+        '50 منتجات',
+        'عدد الطلبات تصل إلى 30 طلب فقط',
+        'عدد الطلبات المتروكة 10 فقط',
+        '1 فيس بوك بيكسل',
+        'بدون تخصيص واجهة المتجر CSS',
+        'دومين فرعي 1 مجاني',
         'خيارات دفع أساسية',
         'دعم فني أساسي'
       ]
@@ -98,30 +88,36 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
       id: 'growth',
       name: 'النمو',
       monthlyPrice: 700,
-      yearlyPrice: 7560,
+      yearlyPrice: 700 * 12 * 0.97, // 3% discount
       popular: true,
       features: [
-        'جميع مميزات إشرو لايت',
-        'منتجات غير محدودة',
-        'تكامل مع شركات الشحن',
-        'تحليلات متقدمة',
-        'دعم فني متقدم',
-        'تطبيق الجوال'
+        'متجر إلكتروني احترافي',
+        '200 منتجات',
+        'عدد الطلبات تصل إلى 80 طلب فقط',
+        'عدد الطلبات المتروكة 30 فقط',
+        '2 فيس بوك بيكسل',
+        'بدون تخصيص واجهة المتجر CSS',
+        'دومين فرعي 1 مجاني',
+        'خيارات دفع أساسية',
+        'دعم فني أساسي'
       ]
     },
     {
       id: 'professional',
       name: 'الإحترافية',
       monthlyPrice: 1200,
-      yearlyPrice: 12960,
+      yearlyPrice: 1200 * 12 * 0.95, // 5% discount
       popular: false,
       features: [
-        'جميع مميزات النمو',
-        'متاجر متعددة',
-        'API متقدم',
-        'تخصيص كامل',
-        'تقارير مخصصة',
-        'مدير حساب مخصص'
+        'متجر إلكتروني احترافي',
+        'منتجات غير محدودة',
+        'طلبات غير محدودة',
+        'الطلبات المتروكة مجانا',
+        '4 فيس بوك بيكسل',
+        'بدون تخصيص واجهة المتجر CSS',
+        'دومين فرعي 1 مجاني',
+        'خيارات دفع أساسية',
+        'دعم فني أساسي'
       ]
     },
     {
@@ -131,12 +127,15 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
       yearlyPrice: null,
       popular: false,
       features: [
-        'جميع مميزات الاحترافية',
-        'حلول مؤسسية',
-        'تكامل مخصص',
-        'دعم على مدار 24/7',
-        'تدريب شخصي',
-        'استشارات تقنية'
+        'متجر إلكتروني احترافي',
+        'منتجات غير محدودة',
+        'طلبات غير محدودة',
+        'الطلبات المتروكة غير محدودة',
+        'فيس بوك بيكسيل غير محدود',
+        'تخصيص واجهة المتجر CSS',
+        'دومين إحترافي غير محدود',
+        'خيارات دفع أساسية',
+        'دعم فني أساسي'
       ]
     }
   ];
@@ -230,7 +229,7 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
             <h3 className="text-3xl font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent mb-2">
               الباقات
             </h3>
-            <p className="text-gray-600 text-lg">يتم إختيار الباقة المناسبة لك</p>
+            <p className="text-gray-600 text-lg">اختر الباقة المناسبة لك</p>
           </motion.div>
 
           {/* Billing Toggle متطور */}
@@ -269,8 +268,8 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
             </Card>
           </motion.div>
 
-          {/* Packages Grid متطور */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Packages Grid متطور مع هوية إشرو */}
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
             {packages.map((pkg, index) => (
               <motion.div
                 key={pkg.id}
@@ -278,52 +277,51 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 * index }}
               >
-                <Card className={`relative overflow-hidden hover:shadow-2xl transition-all duration-500 group transform hover:scale-105 ${
+                <Card className={`relative overflow-hidden hover:shadow-2xl transition-all duration-500 group transform hover:scale-105 cursor-pointer h-full ${
                   pkg.popular
                     ? 'border-2 border-indigo-500 bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 shadow-indigo-200/50'
-                    : 'bg-white hover:shadow-indigo-100/50 border-2 border-gray-100 hover:border-indigo-200'
+                    : 'bg-white hover:shadow-green-100/50 border-2 border-gray-100 hover:border-green-300 hover:bg-green-50/30'
                 }`}>
-                  {pkg.popular && (
-                    <div className="absolute -top-3 right-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white px-4 py-1 rounded-full text-sm font-medium shadow-lg animate-pulse">
-                      ⭐ الأكثر شعبية
-                    </div>
-                  )}
 
                   <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full -translate-y-16 translate-x-16 group-hover:scale-125 transition-transform duration-500"></div>
                   <div className="absolute bottom-0 left-0 w-20 h-20 bg-gradient-to-br from-purple-400/10 to-pink-400/10 rounded-full translate-y-10 -translate-x-10 group-hover:scale-110 transition-transform duration-500"></div>
 
-                  <CardHeader className="text-center pb-4 relative">
+                  <CardHeader className="text-center pb-4 relative flex flex-col items-center justify-center">
                     <CardTitle className="text-xl font-bold text-gray-800 mb-2">{pkg.name}</CardTitle>
-                    <div className="mt-4">
+                    <div className="mt-4 flex flex-col items-center justify-center text-center">
                       {pkg.monthlyPrice ? (
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col items-center justify-center text-center">
                           <div>
                             <span className="text-4xl font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">
                               {billingCycle === 'yearly' ? Math.floor(pkg.yearlyPrice! / 12) : pkg.monthlyPrice}
                             </span>
                             <span className="text-gray-600 mr-1 text-lg">د.ل</span>
                           </div>
-                          <p className="text-sm text-gray-600">
-                            /{billingCycle === 'yearly' ? 'شهر' : 'شهر'}
+                          <p className="text-sm text-gray-600 flex flex-col items-center justify-center text-center">
+                            {billingCycle === 'yearly' ? 'سنوي' : 'شهري'}
                           </p>
                           {billingCycle === 'yearly' && (
                             <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full inline-block">
-                              توفير {pkg.monthlyPrice! * 12 - pkg.yearlyPrice!} د.ل سنوياً
+                              وفر {pkg.id === 'lite' ? '1%' : pkg.id === 'growth' ? '3%' : '5%'}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div>
-                          <span className="text-2xl font-bold bg-gradient-to-r from-gray-700 to-gray-900 bg-clip-text text-transparent">
-                            بأسعار مخصصة
-                          </span>
-                          <p className="text-sm text-gray-600">حسب احتياجاتك</p>
+                        <div className="flex flex-col items-center justify-center text-center">
+                          <div className="flex flex-col items-center justify-center text-center">
+                            <span className="text-2xl font-bold bg-gradient-to-r from-gray-700 to-gray-900 bg-clip-text text-transparent block">
+                              {pkg.id === 'business' ? 'بأسعار مخصصة' : 'حلول مؤسسات'}
+                            </span>
+                            <p className="text-sm text-gray-600 mt-4 flex flex-col items-center justify-center text-center">
+                              {pkg.id === 'business' ? 'حسب احتياجاتك' : 'حسب احتياجاتك'}
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>
                   </CardHeader>
 
-                  <CardContent className="pt-0 relative">
+                  <CardContent className="pt-0 relative flex flex-col justify-between min-h-[320px]">
                     <ul className="space-y-3 mb-6">
                       {pkg.features.map((feature, featureIndex) => (
                         <li key={featureIndex} className="flex items-start gap-3 text-sm">
@@ -335,19 +333,19 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
                       ))}
                     </ul>
                     <Button
-                      className={`w-full relative overflow-hidden group transition-all duration-300 ${
-                        pkg.id === 'growth'
-                          ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-lg hover:shadow-xl hover:shadow-indigo-500/25'
-                          : 'bg-white border-2 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
-                      }`}
-                      variant={pkg.id === 'growth' ? 'default' : 'outline'}
+                      className="w-full relative overflow-hidden group transition-all duration-300 bg-white border-2 border-gray-200 hover:border-green-300 hover:bg-green-50 hover:text-green-700"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedPackage(pkg);
+                        setCheckoutModalOpen(true);
+                      }}
                     >
                       <div className={`absolute inset-0 bg-gradient-to-r transition-opacity duration-300 ${
                         pkg.id === 'growth' ? 'from-white/20 to-transparent' : 'opacity-0'
                       }`}></div>
                       <span className="relative flex items-center gap-2">
-                        {pkg.id === 'enterprise' ? 'التواصل مع فريق المبيعات' : 'أختر الباقة'}
-                        {pkg.id !== 'enterprise' && <ChevronRight className="w-4 h-4" />}
+                        أختر الباقة
+                        <ChevronRight className="w-4 h-4" />
                       </span>
                     </Button>
                   </CardContent>
@@ -363,68 +361,68 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  </div>
-                  <h4 className="font-medium text-gray-900 mb-1">مجتمعات إشرو النشطة</h4>
-                  <p className="text-sm text-gray-600">تفاعل مع شبكة نشطة من التجار الآخرين لتبادل الخبرات ومناقشة أفضل الممارسات والبقاء في صدارة التوجهات السوقية.</p>
-                </div>
+               <div className="flex flex-col items-center justify-center text-center">
+                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                   <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                   </svg>
+                 </div>
+                 <h4 className="font-medium text-gray-900 mb-1 flex flex-col items-center justify-center text-center">مجتمعات إشرو النشطة</h4>
+                 <p className="text-sm text-gray-600 flex flex-col items-center justify-center text-center">تفاعل مع شبكة نشطة من التجار الآخرين لتبادل الخبرات ومناقشة أفضل الممارسات والبقاء في صدارة التوجهات السوقية.</p>
+               </div>
 
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
-                  </div>
-                  <h4 className="font-medium text-gray-900 mb-1">تجربة دفع عالية التحويل</h4>
-                  <p className="text-sm text-gray-600">توفر إشرو تجربة دفع محسّنة ومصممة لتحقيق معدلات تحويل عالية، ما يضمن تجربة سلسة للعملاء في ليبيا.</p>
-                </div>
+               <div className="flex flex-col items-center justify-center text-center">
+                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                   <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                   </svg>
+                 </div>
+                 <h4 className="font-medium text-gray-900 mb-1 flex flex-col items-center justify-center text-center">تجربة دفع عالية التحويل</h4>
+                 <p className="text-sm text-gray-600 flex flex-col items-center justify-center text-center">توفر إشرو تجربة دفع محسّنة ومصممة لتحقيق معدلات تحويل عالية، ما يضمن تجربة سلسة للعملاء في ليبيا.</p>
+               </div>
 
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
-                    </svg>
-                  </div>
-                  <h4 className="font-medium text-gray-900 mb-1">واجهات متجر قابلة للتخصيص</h4>
-                  <p className="text-sm text-gray-600">اختر من بين مجموعة من القوالب وخصص متجرك بسهولة بما يتناسب مع هوية علامتك التجارية.</p>
-                </div>
+               <div className="flex flex-col items-center justify-center text-center">
+                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                   <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                   </svg>
+                 </div>
+                 <h4 className="font-medium text-gray-900 mb-1 flex flex-col items-center justify-center text-center">واجهات متجر قابلة للتخصيص</h4>
+                 <p className="text-sm text-gray-600 flex flex-col items-center justify-center text-center">اختر من بين مجموعة من القوالب وخصص متجرك بسهولة بما يتناسب مع هوية علامتك التجارية.</p>
+               </div>
 
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <svg className="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
-                  </div>
-                  <h4 className="font-medium text-gray-900 mb-1">خيارات دفع مدمجة وخدمة الشراء لاحقًا</h4>
-                  <p className="text-sm text-gray-600">اقبل المدفوعات بطرق متعددة مثل سداد, تداول, موبي كاش, معاملات, أنيس, إدفعلي, قصتلي, الدفع كاش، وخدمة الشراء الآن والدفع لاحقًا.</p>
-                </div>
-              </div>
+               <div className="flex flex-col items-center justify-center text-center">
+                 <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                   <svg className="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                   </svg>
+                 </div>
+                 <h4 className="font-medium text-gray-900 mb-1">خيارات دفع مدمجة وخدمة الشراء لاحقًا</h4>
+                 <p className="text-sm text-gray-600">اقبل المدفوعات بطرق متعددة مثل سداد, تداول, موبي كاش, معاملات, أنيس, إدفعلي, قصتلي, الدفع كاش، وخدمة الشراء الآن والدفع لاحقًا.</p>
+               </div>
+             </div>
 
               {/* Additional Benefits */}
               <div className="mt-8 pt-6 border-t border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="text-center">
+                  <div className="flex flex-col items-center justify-center text-center">
                     <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                       <svg className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                       </svg>
                     </div>
-                    <h4 className="font-medium text-gray-900 mb-1">تكامل مرن مع شركات الشحن</h4>
-                    <p className="text-sm text-gray-600">تواصل مع أفضل مزودي الشحن والتوصيل المحليين، وخصص سياسات الشحن، وأدِر خيارات التوصيل بكفاءة</p>
+                    <h4 className="font-medium text-gray-900 mb-1 flex flex-col items-center justify-center text-center">تكامل مرن مع شركات الشحن</h4>
+                    <p className="text-sm text-gray-600 flex flex-col items-center justify-center text-center">تواصل مع أفضل مزودي الشحن والتوصيل المحليين، وخصص سياسات الشحن، وأدِر خيارات التوصيل بكفاءة</p>
                   </div>
 
-                  <div className="text-center">
+                  <div className="flex flex-col items-center justify-center text-center">
                     <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                       <svg className="w-6 h-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                       </svg>
                     </div>
-                    <h4 className="font-medium text-gray-900 mb-1">تحليلات متقدمة</h4>
-                    <p className="text-sm text-gray-600">احصل على رؤى مفصلة حول أداء متجرك وتحسين استراتيجيات البيع الخاصة بك</p>
+                    <h4 className="font-medium text-gray-900 mb-1 flex flex-col items-center justify-center text-center">تحليلات متقدمة</h4>
+                    <p className="text-sm text-gray-600 flex flex-col items-center justify-center text-center">احصل على رؤى مفصلة حول أداء متجرك وتحسين استراتيجيات البيع الخاصة بك</p>
                   </div>
                 </div>
               </div>
@@ -774,6 +772,15 @@ export const SubscriptionManagementView: React.FC<SubscriptionManagementViewProp
           </motion.div>
         </TabsContent>
       </Tabs>
+
+      {/* Checkout Modal */}
+      <SubscriptionCheckoutModal
+        isOpen={checkoutModalOpen}
+        onClose={() => setCheckoutModalOpen(false)}
+        selectedPackage={selectedPackage}
+        billingCycle={billingCycle}
+        onBillingCycleChange={setBillingCycle}
+      />
       </div>
     </div>
   );

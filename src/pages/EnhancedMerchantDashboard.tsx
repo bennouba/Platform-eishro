@@ -3,9 +3,32 @@
 // إعادة بناء شاملة من الصفر
 
 import React, { useCallback, useState } from 'react';
+import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 // Google Maps API types declaration
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+// Bidding map click handler component
+const BiddingMapClickHandler = ({ onMapClick }: { onMapClick: (latlng: {lat: number, lng: number}) => void }) => {
+  useMapEvents({
+    click: (e) => {
+      onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+};
+
+// Different click handler for logistics map
+const LogisticsMapClickHandler = ({ onMapClick }: { onMapClick: (latlng: {lat: number, lng: number}) => void }) => {
+  useMapEvents({
+    click: (e) => {
+      onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+};
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +50,7 @@ import {
     AlertTriangle,
     Archive,
     ArrowLeftRight,
+    ArrowRight,
     BarChart3,
     Bell,
     Bot,
@@ -111,16 +135,24 @@ type DashboardSection =
   | 'analytics-financial'
   | 'finance-subscription'
   | 'finance-wallet'
+  | 'services'
+  | 'services-logistics'
+  | 'services-shipping-tracking'
+  | 'services-shipping-policies'
+  | 'services-bidding-routes'
+  | 'services-payments'
+  | 'services-operations'
+  | 'services-deposits'
+  | 'services-bank-accounts'
+  | 'customer-service'
+  | 'technical-support'
   | 'settings-store'
-  | 'settings-interface'
   | 'settings-pages'
   | 'settings-menu'
   | 'settings-sliders'
   | 'settings-ads'
-  | 'pos'
-  | 'services'
-  | 'customer-service'
-  | 'technical-support';
+  | 'settings-interface'
+  | 'pos-overview';
 
 const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -132,11 +164,91 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
   const [analyticsExpanded, setAnalyticsExpanded] = useState(false);
   const [financeExpanded, setFinanceExpanded] = useState(false);
   const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [servicesExpanded, setServicesExpanded] = useState(false);
   const [orderWizardStep, setOrderWizardStep] = useState(1);
   const [orderWizardOpen, setOrderWizardOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [warehouseModalOpen, setWarehouseModalOpen] = useState(false);
+
+  // Analytics sub-view states
+  const [activeAnalyticsView, setActiveAnalyticsView] = useState('نظرة عامة');
+  const [activeSalesView, setActiveSalesView] = useState('نظرة عامة');
+  const [activeInventoryView, setActiveInventoryView] = useState('نظرة عامة');
+  const [activeCustomersView, setActiveCustomersView] = useState('نظرة عامة');
+  const [activeFinancialView, setActiveFinancialView] = useState('نظرة عامة');
+
+  // POS sub-view states
+  const [activePOSView, setActivePOSView] = useState('نقاط البيع');
+  const [activeReportsView, setActiveReportsView] = useState('تقرير المبيعات');
+  const [reportsSearch, setReportsSearch] = useState('');
+  const [reportsSort, setReportsSort] = useState('date');
+  const [showDailyReport, setShowDailyReport] = useState(false);
+
+  // Services states
+  const [logisticsModalOpen, setLogisticsModalOpen] = useState(false);
+  const [showLogisticsMapModal, setShowLogisticsMapModal] = useState(false);
+  const [logisticsMapLoaded, setLogisticsMapLoaded] = useState(false);
+  const [logisticsSelectedCoordinates, setLogisticsSelectedCoordinates] = useState<{lat: number, lng: number} | null>(null);
+  const [logisticsMap, setLogisticsMap] = useState<any>(null);
+  const [logisticsMarker, setLogisticsMarker] = useState<any>(null);
+  const [logisticsForm, setLogisticsForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    city: '',
+    address: '',
+    lat: '',
+    lng: ''
+  });
+
+  const [biddingModalOpen, setBiddingModalOpen] = useState(false);
+  const [showBiddingMapModal, setShowBiddingMapModal] = useState(false);
+  const [biddingSelectedCoordinates, setBiddingSelectedCoordinates] = useState<{lat: number, lng: number} | null>(null);
+  const [biddingForm, setBiddingForm] = useState({
+    name: '',
+    phone: '',
+    city: '',
+    area: '',
+    email: '',
+    route: null as {lat: number, lng: number} | null
+  });
+
+  const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [bankForm, setBankForm] = useState({
+    name: '',
+    holder: '',
+    number: '',
+    currency: 'LYD',
+    iban: '',
+    swift: ''
+  });
+
+  // إصلاح أيقونة Leaflet
+  React.useEffect(() => {
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-shadow.png',
+    });
+  }, []);
+
+  const [shippingCompanies, setShippingCompanies] = useState([
+    { name: 'هدهد', phone: '+218 91 000 0001', email: 'info@hudhud.ly', location: 'طرابلس، ليبيا', icon: 'hudhud.jpeg' },
+    { name: 'دي اتش ال', phone: '+218 91 000 0002', email: 'info@dhl.ly', location: 'طرابلس، ليبيا', icon: 'dhl.png' },
+    { name: 'ارامكس', phone: '+218 91 000 0003', email: 'info@aramex.ly', location: 'طرابلس، ليبيا', icon: 'aramex.webp' },
+    { name: 'برستو', phone: '+218 91 000 0004', email: 'info@presto.ly', location: 'طرابلس، ليبيا', icon: 'presto.jpg' },
+    { name: 'فانيكس', phone: '+218 91 000 0005', email: 'info@vanex.ly', location: 'طرابلس، ليبيا', icon: 'vanex.png' },
+    { name: 'زام', phone: '+218 91 000 0006', email: 'info@zam.ly', location: 'طرابلس، ليبيا', icon: 'ZAM.png' },
+    { name: 'ديبو فاست', phone: '+218 91 000 0007', email: 'info@bebo_fast.ly', location: 'طرابلس، ليبيا', icon: 'bebo_fast.webp' },
+    { name: 'درب السيل', phone: '+218 91 000 0008', email: 'info@darbsail.ly', location: 'طرابلس، ليبيا', icon: 'darbsail.png' },
+    { name: 'سونيك اكسبريس', phone: '+218 91 000 0009', email: 'info@sonicexpress.ly', location: 'طرابلس، ليبيا', icon: 'sonicexpress.webp' },
+    { name: 'جو دليفيري', phone: '+218 91 000 0010', email: 'info@go-delivery.ly', location: 'طرابلس، ليبيا', icon: 'go-delivery.webp' },
+    { name: 'وينغيس', phone: '+218 91 000 0011', email: 'info@wings.ly', location: 'طرابلس، ليبيا', icon: 'wings.webp' },
+    { name: 'دراجات نارية', phone: '+218 91 000 0012', email: 'info@motorcycles.ly', location: 'طرابلس، ليبيا', icon: 'other_delivery.png' }
+  ]);
+
+
 
   // Filter states for sliders and ads
    const [slidersFilter, setSlidersFilter] = useState('all');
@@ -688,6 +800,32 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
     setSettingsExpanded(!settingsExpanded);
   };
 
+  const handleServicesToggle = () => {
+    setServicesExpanded(!servicesExpanded);
+  };
+
+
+  // Analytics sub-view handlers
+  const handleAnalyticsViewChange = (view: string) => {
+    setActiveAnalyticsView(view);
+  };
+
+  const handleSalesViewChange = (view: string) => {
+    setActiveSalesView(view);
+  };
+
+  const handleInventoryViewChange = (view: string) => {
+    setActiveInventoryView(view);
+  };
+
+  const handleCustomersViewChange = (view: string) => {
+    setActiveCustomersView(view);
+  };
+
+  const handleFinancialViewChange = (view: string) => {
+    setActiveFinancialView(view);
+  };
+
   const handleCreateWarehouse = () => {
     setWarehouseForm({
       name: '',
@@ -821,6 +959,25 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
     }
   };
 
+
+  // Preload Google Maps script on mount for faster modal open
+  React.useEffect(() => {
+    try {
+      const googleLoaded = (window as any).google?.maps;
+      if (!googleLoaded && !document.getElementById('google-maps-sdk')) {
+        const script = document.createElement('script');
+        script.id = 'google-maps-sdk';
+        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&libraries=places&language=ar&region=LY&callback=initGoogleMaps`;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+    } catch (error) {
+      console.error('Error loading Google Maps script:', error);
+    }
+  }, []);
+
+  // Initialize map when modal opens with faster loading
   const initializeGoogleMap = useCallback(() => {
     try {
       const googleMaps = (window as any).google?.maps;
@@ -848,9 +1005,9 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               }
             ]
           });
-
+  
           setGoogleMap(map);
-
+  
           // Add click listener to map for immediate location selection
           map.addListener('click', (event: any) => {
             const coordinates = {
@@ -858,7 +1015,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               lng: event.latLng.lng()
             };
             setSelectedCoordinates(coordinates);
-
+  
             // Update or create marker immediately
             if (mapMarker) {
               mapMarker.setPosition(coordinates);
@@ -873,7 +1030,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               setMapMarker(marker);
             }
           });
-
+  
           // Add Libya cities markers with enhanced styling and faster loading
           const libyaCitiesData = [
             { name: 'طرابلس', lat: 32.8872, lng: 13.1913, color: '#EF4444' },
@@ -883,7 +1040,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
             { name: 'الزاوية', lat: 32.7522, lng: 12.7278, color: '#8B5CF6' },
             { name: 'زليتن', lat: 32.4667, lng: 14.5667, color: '#F97316' }
           ];
-
+  
           // Load city markers faster - reduced delay
           libyaCitiesData.forEach((city, index) => {
             setTimeout(() => {
@@ -901,7 +1058,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                 },
                 animation: googleMaps.Animation.DROP
               });
-
+  
               cityMarker.addListener('click', () => {
                 map.setCenter({ lat: city.lat, lng: city.lng });
                 map.setZoom(12);
@@ -919,25 +1076,6 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
       setMapLoaded(false);
     }
   }, [googleMap, setGoogleMap, setMapLoaded, setMapMarker, setSelectedCoordinates, handleMapLocationSelect, mapMarker]);
-
-  // Preload Google Maps script on mount for faster modal open
-  React.useEffect(() => {
-    try {
-      const googleLoaded = (window as any).google?.maps;
-      if (!googleLoaded && !document.getElementById('google-maps-sdk')) {
-        const script = document.createElement('script');
-        script.id = 'google-maps-sdk';
-        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&libraries=places&language=ar&region=LY&callback=initGoogleMaps`;
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
-      }
-    } catch (error) {
-      console.error('Error loading Google Maps script:', error);
-    }
-  }, []);
-
-  // Initialize map when modal opens with faster loading
   React.useEffect(() => {
     if (showMapModal) {
       setMapLoaded(false);
@@ -962,6 +1100,107 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
     }
   }, [showMapModal, initializeGoogleMap]);
 
+  // Initialize logistics map when modal opens
+  const initializeLogisticsMap = useCallback(() => {
+    try {
+      const googleMaps = (window as any).google?.maps;
+      if (googleMaps && !logisticsMap) {
+        console.log('Initializing logistics map...');
+        const mapElement = document.getElementById('logistics-google-map');
+        if (mapElement) {
+          console.log('Map element found, creating map...');
+          const map = new googleMaps.Map(mapElement, {
+            center: { lat: 32.8872, lng: 13.1913 },
+            zoom: 7,
+            mapTypeControl: true,
+            streetViewControl: false,
+            fullscreenControl: true,
+            zoomControl: true,
+            gestureHandling: 'greedy',
+            mapTypeId: googleMaps.MapTypeId.ROADMAP
+          });
+
+          // Add click listener to map
+          map.addListener('click', (event: any) => {
+            const coordinates = {
+              lat: event.latLng.lat(),
+              lng: event.latLng.lng()
+            };
+            console.log('Map clicked at:', coordinates);
+            setLogisticsSelectedCoordinates(coordinates);
+
+            if (logisticsMarker) {
+              logisticsMarker.setPosition(coordinates);
+            } else {
+              const marker = new googleMaps.Marker({
+                position: coordinates,
+                map,
+                title: 'موقع الشركة المختار',
+                draggable: true,
+                animation: googleMaps.Animation.DROP
+              });
+              setLogisticsMarker(marker);
+            }
+          });
+
+          setLogisticsMap(map);
+          setLogisticsMapLoaded(true);
+          console.log('Logistics map initialized successfully');
+        } else {
+          console.error('Map element not found');
+          setTimeout(initializeLogisticsMap, 200);
+        }
+      } else if (!googleMaps) {
+        console.log('Google Maps not loaded yet, retrying...');
+        setTimeout(initializeLogisticsMap, 200);
+      } else {
+        console.log('Map already initialized');
+        setLogisticsMapLoaded(true);
+      }
+    } catch (error) {
+      console.error('Error initializing Logistics Map:', error);
+      setLogisticsMapLoaded(false);
+    }
+  }, [logisticsMap, setLogisticsMap, setLogisticsMapLoaded, setLogisticsMarker, setLogisticsSelectedCoordinates, logisticsMarker]);
+  React.useEffect(() => {
+    if (showLogisticsMapModal) {
+      setLogisticsMapLoaded(false);
+
+      // Check if Google Maps is already loaded
+      if ((window as any).google?.maps) {
+        console.log('Google Maps already loaded, initializing logistics map');
+        initializeLogisticsMap();
+      } else {
+        // Check if script is already added
+        const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+        if (!existingScript) {
+          console.log('Loading Google Maps script for logistics');
+          const script = document.createElement('script');
+          script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&libraries=places&language=ar&region=LY&callback=initLogisticsGoogleMaps`;
+          script.async = true;
+          script.defer = true;
+          document.head.appendChild(script);
+        }
+
+        // Define callback function
+        (window as any).initLogisticsGoogleMaps = () => {
+          console.log('Logistics Google Maps loaded successfully');
+          initializeLogisticsMap();
+        };
+
+        // If script is already loaded but callback not called yet, try initializing
+        setTimeout(() => {
+          if ((window as any).google?.maps && !logisticsMap) {
+            console.log('Google Maps available, initializing logistics map');
+            initializeLogisticsMap();
+          }
+        }, 1000);
+      }
+    }
+  }, [showLogisticsMapModal, initializeLogisticsMap, logisticsMap]);
+
+  
+
   // Global function for Google Maps callback
   (window as any).initGoogleMaps = () => {
     console.log('Google Maps loaded successfully');
@@ -975,8 +1214,143 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
     alert('⚠️ تعذر تحميل خريطة جوجل مابس\n\nالأسباب المحتملة:\n• مشكلة في الاتصال بالإنترنت\n• تم حجب الخريطة في منطقتك\n• مشكلة مؤقتة في خدمة جوجل\n\nالحلول:\n• تأكد من الاتصال بالإنترنت\n• جرب فتح الخريطة مرة أخرى\n• يمكنك إدخال الإحداثيات يدوياً');
   };
 
+  // Logistics map initialization
+
+  // Bidding map initialization
+
+  // Services handlers
+  const handleSaveLogistics = () => {
+    if (!logisticsForm.name.trim()) {
+      alert('يرجى إدخال اسم الخدمة');
+      return;
+    }
+
+    const newCompany = {
+      name: logisticsForm.name,
+      phone: logisticsForm.phone,
+      email: logisticsForm.email,
+      location: logisticsForm.address,
+      icon: 'default.png'
+    };
+
+    setShippingCompanies(prev => [...prev, newCompany]);
+    setLogisticsModalOpen(false);
+    setLogisticsForm({
+      name: '',
+      phone: '',
+      email: '',
+      city: '',
+      address: '',
+      lat: '',
+      lng: ''
+    });
+  };
+
+  const handleLogisticsMapSearch = () => {
+    const searchInput = document.getElementById('logistics-map-search') as HTMLInputElement;
+    const searchTerm = searchInput?.value;
+
+    if (searchTerm && logisticsMap) {
+      const googleMaps = (window as any).google?.maps;
+      if (googleMaps && googleMaps.places) {
+        const service = new googleMaps.places.PlacesService(logisticsMap);
+
+        const request = {
+          query: searchTerm + ', Libya',
+          fields: ['name', 'geometry', 'formatted_address'],
+          language: 'ar'
+        };
+
+        service.findPlaceFromQuery(request, (results: any, status: any) => {
+          if (status === googleMaps.places.PlacesServiceStatus.OK && results && results[0]) {
+            const place = results[0];
+            const coordinates = {
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng()
+            };
+
+            logisticsMap.setCenter(coordinates);
+            logisticsMap.setZoom(15);
+            setLogisticsSelectedCoordinates(coordinates);
+
+            if (logisticsMarker) {
+              logisticsMarker.setPosition(coordinates);
+            } else {
+              const marker = new googleMaps.Marker({
+                position: coordinates,
+                map: logisticsMap,
+                title: place.name,
+                draggable: true,
+                animation: googleMaps.Animation.DROP
+              });
+              setLogisticsMarker(marker);
+            }
+          } else {
+            alert('لم يتم العثور على الموقع. يرجى التأكد من الاسم والمحاولة مرة أخرى.');
+          }
+        });
+      }
+    } else {
+      alert('يرجى إدخال اسم المكان للبحث عنه');
+    }
+  };
+
+  const handleSaveBidding = () => {
+    if (!biddingForm.name.trim()) {
+      alert('يرجى إدخال اسم السائق');
+      return;
+    }
+
+    if (!biddingForm.route) {
+      alert('يرجى تحديد خط السير من الخريطة');
+      return;
+    }
+
+    // Add driver logic here with route information
+    console.log('Driver added:', biddingForm);
+    setBiddingModalOpen(false);
+
+    // Reset form
+    setBiddingForm({
+      name: '',
+      phone: '',
+      city: '',
+      area: '',
+      email: '',
+      route: null
+    });
+    setBiddingSelectedCoordinates(null);
+    setBiddingForm({
+      name: '',
+      phone: '',
+      city: '',
+      area: '',
+      email: '',
+      route: null
+    });
+  };
+
+
+  const handleSaveBank = () => {
+    if (!bankForm.name.trim()) {
+      alert('يرجى إدخال اسم المصرف');
+      return;
+    }
+
+    // Add bank account logic here
+    setBankModalOpen(false);
+    setBankForm({
+      name: '',
+      holder: '',
+      number: '',
+      currency: 'LYD',
+      iban: '',
+      swift: ''
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <style dangerouslySetInnerHTML={{
         __html: `
           @keyframes fade-in {
@@ -1265,7 +1639,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
             <div className="flex gap-3 mt-6">
               <Button
                 onClick={handleSaveWarehouse}
-                className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                 disabled={!warehouseForm.name.trim() || !warehouseForm.city}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -1385,7 +1759,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
       )}
 
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-white/80 backdrop-blur-lg border-b border-slate-200 sticky top-0 z-50">
         <div className="w-full px-2 sm:px-4 lg:px-6">
           <div className="flex justify-between items-center h-16">
             {/* Logo on the far left edge */}
@@ -1579,7 +1953,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:inset-0 ${
+        <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white/80 backdrop-blur-lg shadow-lg transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:inset-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`} style={{ top: '64px', height: 'calc(100vh - 64px)' }}>
           <div className="flex flex-col h-full pt-5 pb-4 overflow-y-auto">
@@ -1930,6 +2304,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                 )}
               </div>
 
+
               {/* Finance Section with Submenu */}
               <div>
                 <button
@@ -2053,34 +2428,115 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                 )}
               </div>
 
-              {/* POS */}
+              {/* Services Section with Submenu */}
               <div>
                 <button
-                  onClick={() => handleSectionChange('pos')}
+                  onClick={handleServicesToggle}
                   className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                    activeSection === 'pos'
-                      ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <CreditCard className="ml-3 h-5 w-5" />
-                  نقاط البيع
-                </button>
-              </div>
-
-              {/* Services */}
-              <div>
-                <button
-                  onClick={() => handleSectionChange('services')}
-                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                    activeSection === 'services'
+                    activeSection.startsWith('services')
                       ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
                   <Truck className="ml-3 h-5 w-5" />
                   الخدمات
+                  <ChevronDown className={`mr-auto h-4 w-4 transition-transform duration-200 ${
+                    servicesExpanded ? 'rotate-180' : ''
+                  }`} />
                 </button>
+
+                {servicesExpanded && (
+                  <div className="mt-2 space-y-1 mr-4">
+                    <button
+                      onClick={() => handleSectionChange('services-logistics')}
+                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeSection === 'services-logistics'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <Truck className="ml-2 h-4 w-4" />
+                      اللوجستيات
+                    </button>
+                    <button
+                      onClick={() => handleSectionChange('services-shipping-tracking')}
+                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeSection === 'services-shipping-tracking'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <Package className="ml-2 h-4 w-4" />
+                      تتبع عمليات الشحن
+                    </button>
+                    <button
+                      onClick={() => handleSectionChange('services-shipping-policies')}
+                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeSection === 'services-shipping-policies'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <FileText className="ml-2 h-4 w-4" />
+                      متابعة بوليصات الشحن
+                    </button>
+                    <button
+                      onClick={() => handleSectionChange('services-bidding-routes')}
+                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeSection === 'services-bidding-routes'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <Target className="ml-2 h-4 w-4" />
+                      المزايدة على المشوار
+                    </button>
+                    <button
+                      onClick={() => handleSectionChange('services-payments')}
+                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeSection === 'services-payments'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <CreditCard className="ml-2 h-4 w-4" />
+                      المدفوعات
+                    </button>
+                    <button
+                      onClick={() => handleSectionChange('services-operations')}
+                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeSection === 'services-operations'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <Activity className="ml-2 h-4 w-4" />
+                      العمليات
+                    </button>
+                    <button
+                      onClick={() => handleSectionChange('services-deposits')}
+                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeSection === 'services-deposits'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <DollarSign className="ml-2 h-4 w-4" />
+                      الايداعات
+                    </button>
+                    <button
+                      onClick={() => handleSectionChange('services-bank-accounts')}
+                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeSection === 'services-bank-accounts'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <Building className="ml-2 h-4 w-4" />
+                      الحسابات المصرفية
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Customer Service */}
@@ -2143,7 +2599,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               {activeSection === 'overview' && (
                 <div className="space-y-6">
                   {/* Top Welcome + KPIs */}
-                  <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 text-white shadow-2xl">
+                  <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 rounded-2xl p-8 text-white shadow-2xl">
                     <div className="flex items-center justify-between">
                       <div>
                         <h2 className="text-3xl font-bold mb-2">مرحباً بك عزيزي، نتمنى لك وقتاً ممتعاً معنا بمنصة إشرو ✨</h2>
@@ -2507,9 +2963,9 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                     {/* Quick actions */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Button className="h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"><Plus className="h-4 w-4 ml-2" /> إنشاء حملة تسويقية</Button>
-                      <Button className="h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"><Upload className="h-4 w-4 ml-2" /> إضافة منتج جديد</Button>
-                      <Button className="h-12" variant="outline"><Download className="h-4 w-4 ml-2" /> تصدير تقرير شهري</Button>
+                      <Button className="h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"><Plus className="h-4 w-4 ml-2" /> إنشاء حملة تسويقية</Button>
+                      <Button className="h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"><Upload className="h-4 w-4 ml-2" /> إضافة منتج جديد</Button>
+                      <Button className="h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"><Download className="h-4 w-4 ml-2" /> تصدير تقرير شهري</Button>
                     </div>
                   </section>
 
@@ -2530,7 +2986,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                   {/* Advanced KPIs Strip (moved to top) */}
                   <div className="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                    <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white shadow-2xl">
+                    <Card className="relative overflow-hidden bg-gradient-to-br from-purple-600 to-pink-600 text-white shadow-2xl">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                           <div>
@@ -2548,7 +3004,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                       <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/5 rounded-full" />
                     </Card>
 
-                    <Card className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-2xl">
+                    <Card className="relative overflow-hidden bg-gradient-to-br from-green-600 to-blue-700 text-white shadow-2xl">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                           <div>
@@ -2566,7 +3022,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                       <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/10 rounded-full" />
                     </Card>
 
-                    <Card className="relative overflow-hidden bg-gradient-to-br from-fuchsia-600 to-pink-600 text-white shadow-2xl">
+                    <Card className="relative overflow-hidden bg-gradient-to-br from-pink-600 to-purple-600 text-white shadow-2xl">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                           <div>
@@ -2584,14 +3040,14 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                       <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/10 rounded-full" />
                     </Card>
 
-                    <Card className="relative overflow-hidden bg-gradient-to-br from-sky-600 to-blue-700 text-white shadow-2xl">
+                    <Card className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-2xl">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm text-white/70">مؤشر الأداء</p>
                             <p className="text-4xl font-extrabold mt-1">94%</p>
                             <div className="mt-2 text-white text-xs flex items-center gap-1">
-                              <Zap className="h-4 w-4" /> ثابت خلال 24 ساعة
+                              <Zap className="h-4 w-4" /> تحسن سريع 24 ساعة
                             </div>
                           </div>
                           <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center">
@@ -3142,7 +3598,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-900">الطلبات اليدوية</h2>
                     <Button
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
                       onClick={() => setOrderWizardOpen(true)}
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -3405,13 +3861,13 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                             {orderWizardStep < 4 ? (
                               <Button
-                                className="bg-blue-600 hover:bg-blue-700"
+                                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                                 onClick={() => setOrderWizardStep(orderWizardStep + 1)}
                               >
                                 التالي
                               </Button>
                             ) : (
-                              <Button className="bg-green-600 hover:bg-green-700">
+                              <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                                 <Save className="h-4 w-4 mr-2" />
                                 حفظ الطلب
                               </Button>
@@ -3598,7 +4054,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-900">المنتجات</h2>
                     <Button
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white"
                       onClick={() => setProductModalOpen(true)}
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -3701,7 +4157,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                             <div className="space-y-3">
                               <div className="flex items-center space-x-2">
-                                <Checkbox id="product-visible" defaultChecked />
+                                <Checkbox id="product-visible" />
                                 <Label htmlFor="product-visible" className="text-sm">عرض المنتج على المنصة</Label>
                               </div>
 
@@ -3804,7 +4260,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                           <Button variant="outline" onClick={() => setProductModalOpen(false)}>
                             إلغاء
                           </Button>
-                          <Button className="bg-green-600 hover:bg-green-700">
+                          <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                             <ShoppingBag className="h-4 w-4 mr-2" />
                             إنشاء المنتج
                           </Button>
@@ -3969,7 +4425,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-900">التصنيفات ✨</h2>
                     <Button
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                      className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white"
                       onClick={() => setCategoryModalOpen(true)}
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -4140,7 +4596,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                           <Button variant="outline" onClick={() => setCategoryModalOpen(false)}>
                             إلغاء
                           </Button>
-                          <Button className="bg-green-600 hover:bg-green-700">
+                          <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                             <Tag className="h-4 w-4 mr-2" />
                             ✨ إنشاء التصنيف
                           </Button>
@@ -4171,7 +4627,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-900">مجموعات العملاء</h2>
-                    <Button className="bg-green-600 hover:bg-green-700 text-white">
+                    <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white">
                       <Plus className="h-4 w-4 mr-2" />
                       إنشاء مجموعة
                     </Button>
@@ -4307,7 +4763,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                         <div className="flex justify-end gap-2">
                           <Button variant="outline">إلغاء</Button>
-                          <Button className="bg-green-600 hover:bg-green-700">حفظ المجموعة</Button>
+                          <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">حفظ المجموعة</Button>
                         </div>
                       </div>
                     </CardContent>
@@ -4384,7 +4840,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-900">رسائل الحملات التسويقية</h2>
-                    <Button className="bg-green-600 hover:bg-green-700 text-white">
+                    <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white">
                       <Plus className="h-4 w-4 mr-2" />
                       إنشاء حملة جديدة
                     </Button>
@@ -4396,7 +4852,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                         <MessageSquare className="h-12 w-12 text-green-400 mx-auto mb-3" />
                         <h3 className="text-lg font-bold text-gray-800 mb-2">قم بتفعيل ميزة الواتساب لإطلاق حملات مستهدفة</h3>
                         <p className="text-gray-600 mb-4">وإعادة التواصل مع العملاء، وتحقيق المزيد من التحويلات</p>
-                        <Button className="bg-green-600 hover:bg-green-700">تفعيل ميزة الواتساب</Button>
+                        <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">تفعيل ميزة الواتساب</Button>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -4520,58 +4976,768 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               )}
 
               {activeSection === 'analytics-live' && (
+                <div className="flex">
+                  {/* Sidebar */}
+                  <div className="w-64 bg-white shadow-lg p-4 space-y-2">
+                    <h3 className="font-bold text-gray-800 mb-4">التحليلات المباشرة</h3>
+                    <button
+                      onClick={() => handleAnalyticsViewChange('نظرة عامة')}
+                      className={`w-full text-right p-2 rounded-lg ${activeAnalyticsView === 'نظرة عامة' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      نظرة عامة
+                    </button>
+                    <button
+                      onClick={() => handleAnalyticsViewChange('تحليلات جغرافية')}
+                      className={`w-full text-right p-2 rounded-lg ${activeAnalyticsView === 'تحليلات جغرافية' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      تحليلات جغرافية
+                    </button>
+                    <button
+                      onClick={() => handleAnalyticsViewChange('الصفحات الأكثر زيارة')}
+                      className={`w-full text-right p-2 rounded-lg ${activeAnalyticsView === 'الصفحات الأكثر زيارة' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      الصفحات الأكثر زيارة
+                    </button>
+                    <button
+                      onClick={() => handleAnalyticsViewChange('تطور المبيعات')}
+                      className={`w-full text-right p-2 rounded-lg ${activeAnalyticsView === 'تطور المبيعات' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      تطور المبيعات
+                    </button>
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="flex-1 space-y-6 p-6">
+                    <h2 className="text-2xl font-bold text-gray-900">التحليلات المباشرة</h2>
+
+                    {activeAnalyticsView === 'نظرة عامة' && (
+                      <>
+                        <Card className="shadow-lg bg-gradient-to-r from-blue-50 to-purple-50">
+                          <CardContent className="p-6">
+                            <h3 className="text-lg font-bold text-gray-800 mb-4">تحليلات حقيقية ومتحدثة للحظة الحالية</h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="text-center p-4 bg-white rounded-lg">
+                                <p className="text-sm text-gray-600 mb-2">2025 سبتمبر 22 - يوم 24</p>
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm">العملاء</span>
+                                    <span className="font-bold text-blue-600">6 عملاء نشطون</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm">عدد الزيارات</span>
+                                    <span className="font-bold text-green-600">800 زيارة</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm">عدد الطلبات</span>
+                                    <span className="font-bold text-purple-600">11 طلب</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm">إجمالي المبيعات</span>
+                                    <span className="font-bold text-orange-600">3,288.27 د.ل</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-center p-4 bg-white rounded-lg">
+                                <h4 className="font-bold text-gray-800 mb-3">رحلة العميل</h4>
+                                <p className="text-sm text-gray-600 mb-4">تصور لمراحل رحلة العملاء في متجرك</p>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex items-center justify-between">
+                                    <span>زائر</span>
+                                    <span className="font-bold">909 زائر</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>منتشر</span>
+                                    <span className="font-bold">34 متجر</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>اشتريت</span>
+                                    <span className="font-bold">10 شراء</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>مكمل</span>
+                                    <span className="font-bold">6 طلب</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Enhanced Real-time Metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                          <Card className="shadow-lg bg-gradient-to-br from-indigo-50 to-blue-100">
+                            <CardContent className="p-6 text-center">
+                              <div className="relative">
+                                <div className="text-3xl font-bold text-indigo-600 mb-1">94%</div>
+                                <p className="text-sm text-gray-600">معدل التحويل</p>
+                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <TrendingUp className="h-3 w-3 text-white" />
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-emerald-50 to-green-100">
+                            <CardContent className="p-6 text-center">
+                              <div className="relative">
+                                <div className="text-3xl font-bold text-emerald-600 mb-1">4.2</div>
+                                <p className="text-sm text-gray-600">متوسط التقييم</p>
+                                <div className="flex justify-center mt-2">
+                                  {Array.from({length: 5}).map((_, i) => (
+                                    <Star key={i} className="h-4 w-4 text-yellow-400 fill-current" />
+                                  ))}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-orange-50 to-red-100">
+                            <CardContent className="p-6 text-center">
+                              <div className="relative">
+                                <div className="text-3xl font-bold text-orange-600 mb-1">156</div>
+                                <p className="text-sm text-gray-600">منتج مباع</p>
+                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                  <ShoppingBag className="h-3 w-3 text-white" />
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-purple-50 to-pink-100">
+                            <CardContent className="p-6 text-center">
+                              <div className="relative">
+                                <div className="text-3xl font-bold text-purple-600 mb-1">89%</div>
+                                <p className="text-sm text-gray-600">معدل الرضا</p>
+                                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                  <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full" style={{width: '89%'}}></div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Amazing Analytics Chart */}
+                        <Card className="shadow-lg bg-gradient-to-br from-slate-50 to-gray-100">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Activity className="h-5 w-5 text-blue-600" />
+                              تحليلات الأداء المباشر
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="relative h-64 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-lg p-4">
+                              {/* Animated background elements */}
+                              <div className="absolute inset-0">
+                                <div className="absolute top-4 left-4 w-16 h-16 bg-blue-200 rounded-full opacity-20 animate-pulse"></div>
+                                <div className="absolute top-8 right-8 w-12 h-12 bg-purple-200 rounded-full opacity-30 animate-pulse" style={{animationDelay: '1s'}}></div>
+                                <div className="absolute bottom-4 left-8 w-20 h-20 bg-indigo-200 rounded-full opacity-25 animate-pulse" style={{animationDelay: '2s'}}></div>
+                              </div>
+
+                              {/* Main chart area */}
+                              <div className="relative z-10 h-full flex items-end justify-between">
+                                {Array.from({length: 24}).map((_, i) => (
+                                  <div key={i} className="flex flex-col items-center">
+                                    <div
+                                      className="w-3 bg-gradient-to-t from-blue-500 via-purple-500 to-pink-500 rounded-t relative overflow-hidden"
+                                      style={{
+                                        height: `${40 + Math.sin(i/3) * 30 + Math.cos(i/4) * 20}%`,
+                                        minHeight: '20px'
+                                      }}
+                                    >
+                                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+                                    </div>
+                                    <span className="text-xs text-gray-600 mt-1">{i}:00</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Chart overlay info */}
+                              <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-3">
+                                <div className="text-xs text-gray-600">الذروة: 14:00</div>
+                                <div className="text-sm font-bold text-gray-800">156 زيارة</div>
+                              </div>
+
+                              <div className="absolute bottom-4 left-4 text-xs text-gray-600">
+                                آخر 24 ساعة
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </>
+                    )}
+
+                    {activeAnalyticsView === 'تحليلات جغرافية' && (
+                      <div className="space-y-6">
+                        <Card className="shadow-lg bg-gradient-to-r from-green-50 to-blue-50">
+                          <CardContent className="p-6">
+                            <h3 className="text-lg font-bold text-gray-800 mb-4">تحليلات جغرافية وتوزيع الزوار</h3>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Interactive Geographic Map */}
+                              <div className="bg-white rounded-lg p-4">
+                                <h4 className="font-bold text-gray-800 mb-3">الخريطة الجغرافية التفاعلية</h4>
+                                <p className="text-sm text-gray-600 mb-4">توزيع العملاء والمبيعات حسب المدن الليبية</p>
+
+                                {/* Simulated Interactive Map */}
+                                <div className="relative h-64 bg-gradient-to-br from-green-100 to-blue-100 rounded-lg overflow-hidden">
+                                  {/* Background pattern */}
+                                  <div className="absolute inset-0 opacity-20">
+                                    <div className="absolute top-4 left-4 w-8 h-8 bg-blue-500 rounded-full"></div>
+                                    <div className="absolute top-12 right-6 w-6 h-6 bg-green-500 rounded-full"></div>
+                                    <div className="absolute bottom-8 left-8 w-10 h-10 bg-purple-500 rounded-full"></div>
+                                    <div className="absolute bottom-4 right-4 w-7 h-7 bg-orange-500 rounded-full"></div>
+                                    <div className="absolute top-1/2 left-1/3 w-5 h-5 bg-red-500 rounded-full"></div>
+                                  </div>
+
+                                  {/* Interactive elements */}
+                                  <div className="absolute top-4 left-4 bg-white rounded-lg p-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow">
+                                    <div className="w-3 h-3 bg-blue-500 rounded-full mb-1"></div>
+                                    <div className="text-xs font-bold">طرابلس</div>
+                                    <div className="text-xs text-gray-600">1,247 عميل</div>
+                                  </div>
+
+                                  <div className="absolute top-12 right-6 bg-white rounded-lg p-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow">
+                                    <div className="w-3 h-3 bg-green-500 rounded-full mb-1"></div>
+                                    <div className="text-xs font-bold">بنغازي</div>
+                                    <div className="text-xs text-gray-600">892 عميل</div>
+                                  </div>
+
+                                  <div className="absolute bottom-8 left-8 bg-white rounded-lg p-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow">
+                                    <div className="w-3 h-3 bg-purple-500 rounded-full mb-1"></div>
+                                    <div className="text-xs font-bold">مصراتة</div>
+                                    <div className="text-xs text-gray-600">654 عميل</div>
+                                  </div>
+
+                                  <div className="absolute bottom-4 right-4 bg-white rounded-lg p-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow">
+                                    <div className="w-3 h-3 bg-orange-500 rounded-full mb-1"></div>
+                                    <div className="text-xs font-bold">سبها</div>
+                                    <div className="text-xs text-gray-600">423 عميل</div>
+                                  </div>
+
+                                  <div className="absolute top-1/2 left-1/3 bg-white rounded-lg p-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow">
+                                    <div className="w-3 h-3 bg-red-500 rounded-full mb-1"></div>
+                                    <div className="text-xs font-bold">الزاوية</div>
+                                    <div className="text-xs text-gray-600">287 عميل</div>
+                                  </div>
+
+                                  {/* Legend */}
+                                  <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm rounded-lg p-2">
+                                    <div className="text-xs font-bold mb-1">المفتاح:</div>
+                                    <div className="space-y-1 text-xs">
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        <span>أكثر من 1000</span>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <span>500-1000</span>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                        <span>أقل من 500</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Geographic Statistics */}
+                              <div className="space-y-4">
+                                <h4 className="font-bold text-gray-800">إحصائيات تفصيلية</h4>
+
+                                <div className="space-y-3">
+                                  {[
+                                    { city: 'طرابلس', customers: 1247, sales: '45,231 د.ل', orders: 234, color: 'blue' },
+                                    { city: 'بنغازي', customers: 892, sales: '32,450 د.ل', orders: 156, color: 'green' },
+                                    { city: 'مصراتة', customers: 654, sales: '28,120 د.ل', orders: 98, color: 'purple' },
+                                    { city: 'سبها', customers: 423, sales: '18,750 د.ل', orders: 67, color: 'orange' },
+                                    { city: 'الزاوية', customers: 287, sales: '12,340 د.ل', orders: 45, color: 'red' }
+                                  ].map((location, index) => (
+                                    <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border hover:shadow-md transition-shadow cursor-pointer">
+                                      <div className="flex items-center gap-3">
+                                        <div className={`w-4 h-4 bg-${location.color}-500 rounded-full`}></div>
+                                        <div>
+                                          <p className="font-medium text-gray-900">{location.city}</p>
+                                          <p className="text-xs text-gray-600">{location.customers} عميل</p>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="font-bold text-gray-900">{location.sales}</p>
+                                        <p className="text-xs text-gray-600">{location.orders} طلب</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Summary Stats */}
+                                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                                    <p className="text-xl font-bold text-blue-600">3,604</p>
+                                    <p className="text-xs text-gray-600">إجمالي العملاء</p>
+                                  </div>
+                                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                                    <p className="text-xl font-bold text-green-600">136,891 د.ل</p>
+                                    <p className="text-xs text-gray-600">إجمالي المبيعات</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Warehouse Locations Integration */}
+                        <Card className="shadow-lg bg-gradient-to-r from-purple-50 to-indigo-50">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Building className="h-5 w-5 text-purple-600" />
+                              توزيع المخازن والمبيعات
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-3">
+                                <h4 className="font-bold text-gray-800">مخازن التاجر</h4>
+                                {warehouses.slice(0, 3).map((warehouse, index) => (
+                                  <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
+                                    <div>
+                                      <p className="font-medium text-gray-900">{warehouse.name}</p>
+                                      <p className="text-xs text-gray-600">{warehouse.city}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <Badge className={warehouse.status === 'نشط' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                        {warehouse.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="space-y-3">
+                                <h4 className="font-bold text-gray-800">أداء المخازن</h4>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between text-sm">
+                                    <span>مخزن طريق المطار</span>
+                                    <span className="font-bold text-green-600">89% كفاءة</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className="bg-gradient-to-r from-green-500 to-green-400 h-2 rounded-full" style={{width: '89%'}}></div>
+                                  </div>
+
+                                  <div className="flex justify-between text-sm">
+                                    <span>مخزن غوط الشعال</span>
+                                    <span className="font-bold text-blue-600">76% كفاءة</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className="bg-gradient-to-r from-blue-500 to-blue-400 h-2 rounded-full" style={{width: '76%'}}></div>
+                                  </div>
+
+                                  <div className="flex justify-between text-sm">
+                                    <span>مخزن شهداء الشط</span>
+                                    <span className="font-bold text-purple-600">82% كفاءة</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className="bg-gradient-to-r from-purple-500 to-purple-400 h-2 rounded-full" style={{width: '82%'}}></div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {activeAnalyticsView === 'الصفحات الأكثر زيارة' && (
+                      <div className="space-y-6">
+                        <Card className="shadow-lg bg-gradient-to-r from-blue-50 to-purple-50">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <BarChart3 className="h-5 w-5 text-blue-600" />
+                              الصفحات الأكثر زيارة
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                              <div className="text-center p-4 bg-white rounded-lg">
+                                <div className="text-2xl font-bold text-blue-600 mb-1">1,247</div>
+                                <div className="text-sm text-gray-600">إجمالي الزيارات</div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style={{width: '100%'}}></div>
+                                </div>
+                              </div>
+
+                              <div className="text-center p-4 bg-white rounded-lg">
+                                <div className="text-2xl font-bold text-green-600 mb-1">4</div>
+                                <div className="text-sm text-gray-600">صفحات نشطة</div>
+                                <div className="flex justify-center mt-2">
+                                  {Array.from({length: 4}).map((_, i) => (
+                                    <div key={i} className="w-2 h-2 bg-green-500 rounded-full mx-1 animate-pulse"></div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="text-center p-4 bg-white rounded-lg">
+                                <div className="text-2xl font-bold text-purple-600 mb-1">89%</div>
+                                <div className="text-sm text-gray-600">معدل التفاعل</div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                  <div className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full" style={{width: '89%'}}></div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-4">
+                              {[
+                                { name: 'الصفحة الرئيسية', visits: 450, percentage: 36, color: 'blue', trend: '+12%' },
+                                { name: 'صفحة المنتجات', visits: 320, percentage: 26, color: 'green', trend: '+8%' },
+                                { name: 'صفحة العروض الخاصة', visits: 280, percentage: 22, color: 'purple', trend: '+15%' },
+                                { name: 'صفحة التواصل معنا', visits: 197, percentage: 16, color: 'orange', trend: '+5%' }
+                              ].map((page, index) => (
+                                <div key={index} className="relative bg-white rounded-lg p-4 border hover:shadow-lg transition-all duration-300 cursor-pointer group">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                      <div className={`w-12 h-12 bg-${page.color}-100 rounded-full flex items-center justify-center`}>
+                                        <span className="text-2xl">📄</span>
+                                      </div>
+                                      <div>
+                                        <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{page.name}</h3>
+                                        <p className="text-sm text-gray-600">{page.visits} زيارة</p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-lg font-bold text-gray-900">{page.visits}</div>
+                                      <div className="text-sm text-green-600">{page.trend}</div>
+                                    </div>
+                                  </div>
+
+                                  {/* Interactive Progress Bar */}
+                                  <div className="mt-3">
+                                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                      <span>نسبة الزيارات</span>
+                                      <span>{page.percentage}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-3 relative overflow-hidden">
+                                      <div
+                                        className={`bg-gradient-to-r from-${page.color}-500 to-${page.color}-400 h-3 rounded-full transition-all duration-1000 ease-out relative`}
+                                        style={{width: `${page.percentage}%`}}
+                                      >
+                                        <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Hover Effects */}
+                                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                                      <Eye className="h-4 w-4 text-white" />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Page Performance Metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <Card className="shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <Activity className="h-5 w-5 text-green-600" />
+                                أداء الصفحات
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-4">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm">متوسط وقت التحميل</span>
+                                  <span className="font-bold text-green-600">1.2 ثانية</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm">معدل الارتداد</span>
+                                  <span className="font-bold text-red-600">23%</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm">معدل التفاعل</span>
+                                  <span className="font-bold text-blue-600">67%</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm">معدل التحويل</span>
+                                  <span className="font-bold text-purple-600">4.2%</span>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <Globe className="h-5 w-5 text-blue-600" />
+                                مصادر الزيارات
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {[
+                                  { source: 'محركات البحث', percentage: 45, color: 'green' },
+                                  { source: 'وسائل التواصل', percentage: 30, color: 'blue' },
+                                  { source: 'زيارات مباشرة', percentage: 15, color: 'purple' },
+                                  { source: 'إحالات أخرى', percentage: 10, color: 'orange' }
+                                ].map((source, index) => (
+                                  <div key={index} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-3 h-3 bg-${source.color}-500 rounded-full`}></div>
+                                      <span className="text-sm">{source.source}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-20 bg-gray-200 rounded-full h-2">
+                                        <div
+                                          className={`bg-${source.color}-500 h-2 rounded-full`}
+                                          style={{width: `${source.percentage}%`}}
+                                        ></div>
+                                      </div>
+                                      <span className="text-sm font-bold w-8 text-right">{source.percentage}%</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeAnalyticsView === 'تطور المبيعات' && (
+                      <div className="space-y-6">
+                        {/* Sales Evolution Header */}
+                        <Card className="shadow-lg bg-gradient-to-r from-green-50 to-blue-50">
+                          <CardContent className="p-6">
+                            <div className="text-center">
+                              <h3 className="text-2xl font-bold text-gray-800 mb-2">🚀 تطور المبيعات خلال الفترات المختلفة</h3>
+                              <p className="text-gray-600">تحليل شامل لأداء المبيعات عبر الزمن</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Weekly Evolution */}
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <BarChart3 className="h-5 w-5 text-blue-600" />
+                              تطور المبيعات الأسبوعي
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="relative h-64 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4">
+                              <div className="flex items-end justify-between h-full">
+                                {[
+                                  {week: 'الأسبوع 1', sales: 12500, growth: '+5%'},
+                                  {week: 'الأسبوع 2', sales: 15200, growth: '+22%'},
+                                  {week: 'الأسبوع 3', sales: 18900, growth: '+24%'},
+                                  {week: 'الأسبوع 4', sales: 22100, growth: '+17%'}
+                                ].map((week, i) => (
+                                  <div key={i} className="flex flex-col items-center group">
+                                    <div
+                                      className="w-16 bg-gradient-to-t from-blue-500 via-purple-500 to-pink-500 rounded-t relative overflow-hidden cursor-pointer hover:scale-110 transition-all duration-300"
+                                      style={{
+                                        height: `${(week.sales / 25000) * 100}%`,
+                                        minHeight: '20px'
+                                      }}
+                                    >
+                                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+                                      <div className="absolute top-0 left-0 w-full h-1 bg-white/50"></div>
+                                    </div>
+                                    <span className="text-xs text-gray-600 mt-2 group-hover:text-blue-600 transition-colors">{week.week}</span>
+                                    <div className="text-center mt-1">
+                                      <div className="text-xs font-bold text-gray-800">{week.sales.toLocaleString()} د.ل</div>
+                                      <div className="text-xs text-green-600">{week.growth}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="absolute bottom-2 left-2 text-xs text-gray-600">الأسابيع</div>
+                              <div className="absolute top-2 right-2 text-xs text-gray-600">المبيعات (د.ل)</div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Monthly Evolution */}
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <TrendingUp className="h-5 w-5 text-green-600" />
+                              تطور المبيعات الشهري
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="relative h-64 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4">
+                              <div className="flex items-end justify-between h-full">
+                                {[
+                                  {month: 'يناير', sales: 45200, growth: '+12%'},
+                                  {month: 'فبراير', sales: 52100, growth: '+15%'},
+                                  {month: 'مارس', sales: 48900, growth: '-6%'},
+                                  {month: 'أبريل', sales: 61200, growth: '+25%'},
+                                  {month: 'مايو', sales: 58700, growth: '-4%'},
+                                  {month: 'يونيو', sales: 67800, growth: '+15%'},
+                                  {month: 'يوليو', sales: 72300, growth: '+7%'},
+                                  {month: 'أغسطس', sales: 69500, growth: '-4%'},
+                                  {month: 'سبتمبر', sales: 78400, growth: '+13%'},
+                                  {month: 'أكتوبر', sales: 82100, growth: '+5%'},
+                                  {month: 'نوفمبر', sales: 79800, growth: '-3%'},
+                                  {month: 'ديسمبر', sales: 89300, growth: '+12%'}
+                                ].map((month, i) => (
+                                  <div key={i} className="flex flex-col items-center group">
+                                    <div
+                                      className="w-6 bg-gradient-to-t from-emerald-500 via-green-500 to-teal-500 rounded-t relative overflow-hidden cursor-pointer hover:scale-110 transition-all duration-300"
+                                      style={{
+                                        height: `${(month.sales / 100000) * 100}%`,
+                                        minHeight: '15px'
+                                      }}
+                                    >
+                                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-pulse"></div>
+                                    </div>
+                                    <span className="text-xs text-gray-600 mt-1 group-hover:text-green-600 transition-colors">{month.month}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="absolute bottom-2 left-2 text-xs text-gray-600">الأشهر</div>
+                              <div className="absolute top-2 right-2 text-xs text-gray-600">المبيعات (د.ل)</div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Yearly Evolution */}
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Activity className="h-5 w-5 text-purple-600" />
+                              تطور المبيعات السنوي
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="relative h-64 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4">
+                              <div className="flex items-end justify-between h-full">
+                                {[
+                                  {year: '2020', sales: 450000, growth: 'baseline'},
+                                  {year: '2021', sales: 567000, growth: '+26%'},
+                                  {year: '2022', sales: 678000, growth: '+20%'},
+                                  {year: '2023', sales: 789000, growth: '+16%'},
+                                  {year: '2024', sales: 892000, growth: '+13%'},
+                                  {year: '2025', sales: 956000, growth: '+7%'}
+                                ].map((year, i) => (
+                                  <div key={i} className="flex flex-col items-center group">
+                                    <div
+                                      className="w-20 bg-gradient-to-t from-purple-600 via-indigo-600 to-blue-600 rounded-t relative overflow-hidden cursor-pointer hover:scale-110 transition-all duration-300"
+                                      style={{
+                                        height: `${(year.sales / 1000000) * 100}%`,
+                                        minHeight: '25px'
+                                      }}
+                                    >
+                                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+                                      <div className="absolute top-0 left-0 w-full h-2 bg-white/30"></div>
+                                    </div>
+                                    <span className="text-xs text-gray-600 mt-2 group-hover:text-purple-600 transition-colors">{year.year}</span>
+                                    <div className="text-center mt-1">
+                                      <div className="text-xs font-bold text-gray-800">{(year.sales / 1000).toFixed(0)}k</div>
+                                      <div className={`text-xs ${year.growth.startsWith('+') ? 'text-green-600' : 'text-gray-600'}`}>
+                                        {year.growth}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="absolute bottom-2 left-2 text-xs text-gray-600">السنوات</div>
+                              <div className="absolute top-2 right-2 text-xs text-gray-600">المبيعات (د.ل)</div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Combined Analytics */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <Card className="shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <PieChart className="h-5 w-5 text-orange-600" />
+                                توزيع المبيعات حسب الفترة
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="flex items-center justify-center">
+                                <div className="relative w-48 h-48">
+                                  <div className="w-48 h-48 rounded-full" style={{
+                                    background: 'conic-gradient(#3B82F6 0% 35%, #10B981 35% 60%, #F59E0B 60% 90%, #EF4444 90% 100%)'
+                                  }} />
+                                  <div className="absolute inset-0 m-6 rounded-full bg-white" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-lg font-bold">100%</span>
+                                  </div>
+                                </div>
+                                <div className="ml-6 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                    <span className="text-sm">أسبوعي (35%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                    <span className="text-sm">شهري (25%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                    <span className="text-sm">ربع سنوي (30%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                    <span className="text-sm">سنوي (10%)</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <Target className="h-5 w-5 text-red-600" />
+                                أهداف المبيعات
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-4">
+                                <div className="flex justify-between text-sm">
+                                  <span>المبيعات الفعلية</span>
+                                  <span className="font-bold text-green-600">89,200 د.ل</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-3">
+                                  <div className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full" style={{width: '89%'}}></div>
+                                </div>
+
+                                <div className="flex justify-between text-sm">
+                                  <span>الهدف المحدد</span>
+                                  <span className="font-bold text-gray-600">100,000 د.ل</span>
+                                </div>
+
+                                <div className="flex justify-between text-sm pt-2 border-t">
+                                  <span className="font-bold">الفارق</span>
+                                  <span className="font-bold text-red-600">-11,800 د.ل</span>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Default content for other sections */}
+              {activeSection !== 'overview' && !activeSection.startsWith('orders') && !activeSection.startsWith('catalog') && !activeSection.startsWith('customers') && !activeSection.startsWith('marketing') && !activeSection.startsWith('analytics') && !activeSection.startsWith('finance') && !activeSection.startsWith('settings') && !activeSection.startsWith('pos') && !activeSection.startsWith('services') && activeSection !== 'customer-service' && activeSection !== 'technical-support' && (
                 <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-900">التحليلات المباشرة</h2>
-
-                  <Card className="shadow-lg bg-gradient-to-r from-blue-50 to-purple-50">
+                  <Card>
                     <CardContent className="p-6">
-                      <h3 className="text-lg font-bold text-gray-800 mb-4">تحليلات حقيقية ومتحدثة للحظة الحالية</h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="text-center p-4 bg-white rounded-lg">
-                          <p className="text-sm text-gray-600 mb-2">2025 سبتمبر 22 - يوم 24</p>
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">العملاء</span>
-                              <span className="font-bold text-blue-600">6 عملاء نشطون</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">عدد الزيارات</span>
-                              <span className="font-bold text-green-600">800 زيارة</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">عدد الطلبات</span>
-                              <span className="font-bold text-purple-600">11 طلب</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">إجمالي المبيعات</span>
-                              <span className="font-bold text-orange-600">3,288.27 د.ل</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-center p-4 bg-white rounded-lg">
-                          <h4 className="font-bold text-gray-800 mb-3">رحلة العميل</h4>
-                          <p className="text-sm text-gray-600 mb-4">تصور لمراحل رحلة العملاء في متجرك</p>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex items-center justify-between">
-                              <span>زائر</span>
-                              <span className="font-bold">909 زائر</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>منتشر</span>
-                              <span className="font-bold">34 متجر</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>اشتريت</span>
-                              <span className="font-bold">10 شراء</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>مكمل</span>
-                              <span className="font-bold">6 طلب</span>
-                            </div>
-                          </div>
-                        </div>
+                      <p className="text-sm text-gray-600 mb-4">محتوى القسم قيد التطوير</p>
+                      <div className="text-center p-8 bg-gray-50 rounded-lg">
+                        <p className="text-gray-600">المحتوى سيتم إضافته قريباً</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -4579,24 +5745,12 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               )}
 
               {/* Default content for other sections */}
-              {activeSection !== 'overview' && !activeSection.startsWith('orders') && !activeSection.startsWith('catalog') && !activeSection.startsWith('customers') && !activeSection.startsWith('marketing') && !activeSection.startsWith('analytics') && !activeSection.startsWith('finance') && !activeSection.startsWith('settings') && activeSection !== 'pos' && activeSection !== 'services' && activeSection !== 'customer-service' && activeSection !== 'technical-support' && (
+              {activeSection !== 'overview' && !activeSection.startsWith('orders') && !activeSection.startsWith('catalog') && !activeSection.startsWith('customers') && !activeSection.startsWith('marketing') && !activeSection.startsWith('analytics') && !activeSection.startsWith('finance') && !activeSection.startsWith('pos') && !activeSection.startsWith('settings') && !activeSection.startsWith('services') && activeSection !== 'customer-service' && activeSection !== 'technical-support' && (
                 <div className="space-y-6">
                   <h2 className="text-2xl font-bold text-gray-900">قسم {activeSection}</h2>
                   <Card>
                     <CardContent className="p-6">
-                      <p className="text-gray-600">محتوى هذا القسم سيتم إضافته قريباً</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Default content for other sections */}
-              {activeSection !== 'overview' && !activeSection.startsWith('orders') && !activeSection.startsWith('catalog') && !activeSection.startsWith('customers') && !activeSection.startsWith('marketing') && !activeSection.startsWith('analytics') && !activeSection.startsWith('finance') && !activeSection.startsWith('settings') && activeSection !== 'pos' && activeSection !== 'services' && activeSection !== 'customer-service' && activeSection !== 'technical-support' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-900">قسم {activeSection}</h2>
-                  <Card>
-                    <CardContent className="p-6">
-                      <p className="text-gray-600">محتوى هذا القسم سيتم إضافته قريباً</p>
+                      
                     </CardContent>
                   </Card>
                 </div>
@@ -4615,7 +5769,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-900">السلات المتروكة</h2>
                     <div className="flex items-center gap-2">
-                      <Checkbox id="mass-reminder" defaultChecked />
+                      <Checkbox id="mass-reminder" />
                       <Label htmlFor="mass-reminder" className="text-sm">إرسال تذكير جماعي</Label>
                     </div>
                   </div>
@@ -4811,7 +5965,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                                 </td>
                                 <td className="p-3">
                                   <div className="flex gap-1">
-                                    <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                                    <Button size="sm" className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                                       <Send className="h-4 w-4 mr-1" />
                                       تذكير
                                     </Button>
@@ -4835,15 +5989,15 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Button className="bg-green-600 hover:bg-green-700 text-white h-16 flex flex-col items-center justify-center">
+                        <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white h-16 flex flex-col items-center justify-center">
                           <MessageSquare className="h-6 w-6 mb-2" />
                           <span className="text-sm">إرسال تذكير عبر واتساب</span>
                         </Button>
-                        <Button className="bg-blue-600 hover:bg-blue-700 text-white h-16 flex flex-col items-center justify-center">
+                        <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white h-16 flex flex-col items-center justify-center">
                           <Mail className="h-6 w-6 mb-2" />
                           <span className="text-sm">إرسال تذكير بالإيميل</span>
                         </Button>
-                        <Button className="bg-purple-600 hover:bg-purple-700 text-white h-16 flex flex-col items-center justify-center">
+                        <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-16 flex flex-col items-center justify-center">
                           <Percent className="h-6 w-6 mb-2" />
                           <span className="text-sm">تطبيق خصم تلقائي</span>
                         </Button>
@@ -5152,7 +6306,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                       <p className="text-gray-600">إدارة مخازنك في ليبيا وأولوية السحب</p>
                     </div>
                     <Button
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
                       onClick={handleCreateWarehouse}
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -5421,7 +6575,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-900">الحقول المخصصة</h2>
-                    <Button className="bg-green-600 hover:bg-green-700 text-white">
+                    <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white">
                       <Plus className="h-4 w-4 mr-2" />
                       إنشاء حقل جديد
                     </Button>
@@ -5479,7 +6633,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                           <Label>العرض في:</Label>
                           <div className="space-y-2">
                             <div className="flex items-center space-x-2">
-                              <Checkbox id="merchant-dashboard" defaultChecked />
+                              <Checkbox id="merchant-dashboard" />
                               <Label htmlFor="merchant-dashboard" className="text-sm">لوحة تحكم التاجر</Label>
                             </div>
                             <div className="flex items-center space-x-2">
@@ -5491,7 +6645,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                         <div className="flex justify-end gap-2">
                           <Button variant="outline">إلغاء</Button>
-                          <Button className="bg-green-600 hover:bg-green-700">حفظ الحقل</Button>
+                          <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">حفظ الحقل</Button>
                         </div>
                       </div>
                     </CardContent>
@@ -5631,7 +6785,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                         <div className="flex justify-end gap-2">
                           <Button variant="outline">إلغاء</Button>
-                          <Button className="bg-green-600 hover:bg-green-700">حفظ الإعدادات</Button>
+                          <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">حفظ الإعدادات</Button>
                         </div>
                       </div>
                     </CardContent>
@@ -5978,7 +7132,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                             </div>
 
                             <div className="flex justify-end">
-                              <Button className="bg-green-600 hover:bg-green-700">
+                              <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                                 <Save className="h-4 w-4 mr-2" />
                                 حفظ الإعدادات
                               </Button>
@@ -6017,7 +7171,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                       <div className="text-center">
                         <p className="text-sm text-gray-600 mb-4">تحسين تجربة العميل وزيادة الثقة في المنتجات</p>
-                        <Button className="bg-blue-600 hover:bg-blue-700">تفعيل الآن</Button>
+                        <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">تفعيل الآن</Button>
                       </div>
 
                       <p className="text-xs text-gray-500 mt-4">
@@ -6036,7 +7190,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-900">أكواد الخصم</h2>
-                    <Button className="bg-green-600 hover:bg-green-700 text-white">
+                    <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white">
                       <Plus className="h-4 w-4 mr-2" />
                       إضافة كوبون جديد
                     </Button>
@@ -6078,7 +7232,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
                           <div className="flex justify-end gap-2">
                             <Button variant="outline">إلغاء</Button>
-                            <Button className="bg-green-600 hover:bg-green-700">حفظ الكوبون</Button>
+                            <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">حفظ الكوبون</Button>
                           </div>
                         </div>
                       </div>
@@ -6152,164 +7306,212 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               )}
 
               {activeSection === 'analytics-inventory' && (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">تقارير المخزون</h2>
-                      <p className="text-gray-600">تحليل شامل لحالة المخزون والمنتجات</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline">
-                        <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l4-4m-4 4l-4-4m8 2h3m-3 4h3m-6-8h3m-3 4h3" />
-                        </svg>
-                        تصدير التقرير
-                      </Button>
-                      <Button>
-                        <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        تحديث البيانات
-                      </Button>
-                    </div>
+                <div className="flex">
+                  {/* Sidebar */}
+                  <div className="w-64 bg-white shadow-lg p-4 space-y-2">
+                    <h3 className="font-bold text-gray-800 mb-4">تقارير المخزون</h3>
+                    <button
+                      onClick={() => handleInventoryViewChange('نظرة عامة')}
+                      className={`w-full text-right p-2 rounded-lg ${activeInventoryView === 'نظرة عامة' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      نظرة عامة
+                    </button>
+                    <button
+                      onClick={() => handleInventoryViewChange('توزيع المنتجات')}
+                      className={`w-full text-right p-2 rounded-lg ${activeInventoryView === 'توزيع المنتجات' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      توزيع المنتجات
+                    </button>
+                    <button
+                      onClick={() => handleInventoryViewChange('اتجاهات المخزون')}
+                      className={`w-full text-right p-2 rounded-lg ${activeInventoryView === 'اتجاهات المخزون' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      اتجاهات المخزون
+                    </button>
+                    <button
+                      onClick={() => handleInventoryViewChange('تنبيهات المخزون')}
+                      className={`w-full text-right p-2 rounded-lg ${activeInventoryView === 'تنبيهات المخزون' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      تنبيهات المخزون
+                    </button>
+                    <button
+                      onClick={() => handleInventoryViewChange('تحليل الأداء')}
+                      className={`w-full text-right p-2 rounded-lg ${activeInventoryView === 'تحليل الأداء' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      تحليل الأداء
+                    </button>
                   </div>
 
-                  <Tabs defaultValue="نظرة عامة" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="نظرة عامة">نظرة عامة</TabsTrigger>
-                      <TabsTrigger value="بالتصنيفات">بالتصنيفات</TabsTrigger>
-                      <TabsTrigger value="اتجاهات">الاتجاهات</TabsTrigger>
-                      <TabsTrigger value="تنبيهات">التنبيهات</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="نظرة عامة" className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <Card>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">إجمالي المنتجات</p>
-                                <p className="text-3xl font-bold text-gray-900">1,250</p>
-                                <p className="text-sm text-blue-600">منتج في المخزون</p>
-                              </div>
-                              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                </svg>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">متوفر في المخزون</p>
-                                <p className="text-3xl font-bold text-green-600">1,100</p>
-                                <p className="text-sm text-green-600">88% من الإجمالي</p>
-                              </div>
-                              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">نقص في المخزون</p>
-                                <p className="text-3xl font-bold text-yellow-600">85</p>
-                                <p className="text-sm text-yellow-600">يحتاج إعادة تعبئة</p>
-                              </div>
-                              <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                                <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                </svg>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">غير متوفر</p>
-                                <p className="text-3xl font-bold text-red-600">65</p>
-                                <p className="text-sm text-red-600">نفذ من المخزون</p>
-                              </div>
-                              <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
-                                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
+                  {/* Main Content */}
+                  <div className="flex-1 space-y-6 p-6">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">تقارير المخزون</h2>
+                        <p className="text-gray-600">تحليل شامل لحالة المخزون والمنتجات</p>
                       </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline">
+                          <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l4-4m-4 4l-4-4m8 2h3m-3 4h3m-6-8h3m-3 4h3" />
+                          </svg>
+                          تصدير التقرير
+                        </Button>
+                        <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+                          <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          تحديث البيانات
+                        </Button>
+                      </div>
+                    </div>
 
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>القيمة الإجمالية للمخزون</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-center py-8">
-                            <div className="text-4xl font-bold text-gray-900 mb-2">245,000 د.ل</div>
-                            <p className="text-gray-600">القيمة الإجمالية للمنتجات في المخزون</p>
-                            <div className="mt-4 flex justify-center">
-                              <div className="w-32 h-32 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                                <span className="text-white font-bold text-lg">82%</span>
+                    {activeInventoryView === 'نظرة عامة' && (
+                      <>
+                        {/* Enhanced Key Metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                          <Card className="shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-xl transition-shadow">
+                            <CardContent className="p-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">إجمالي المنتجات</p>
+                                  <p className="text-3xl font-bold text-blue-600">1,250</p>
+                                  <p className="text-sm text-blue-600">منتج في المخزون</p>
+                                </div>
+                                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                  <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                  </svg>
+                                </div>
                               </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
+                            </CardContent>
+                          </Card>
 
-                    <TabsContent value="بالتصنيفات" className="space-y-6">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>توزيع المنتجات حسب التصنيف</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {[
-                              { name: 'ملابس', count: 450, value: 125000, percentage: 51 },
-                              { name: 'أحذية', count: 320, value: 85000, percentage: 35 },
-                              { name: 'إكسسوارات', count: 280, value: 35000, percentage: 14 }
-                            ].map((category, index) => (
-                              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-4 h-4 rounded-full bg-gradient-to-r ${
-                                    index === 0 ? 'from-blue-500 to-blue-600' :
-                                    index === 1 ? 'from-green-500 to-green-600' :
-                                    'from-yellow-500 to-yellow-600'
-                                  }`}></div>
-                                  <div>
-                                    <p className="font-medium text-gray-900">{category.name}</p>
-                                    <p className="text-sm text-gray-600">{category.count} منتج</p>
+                          <Card className="shadow-lg bg-gradient-to-br from-green-50 to-green-100 hover:shadow-xl transition-shadow">
+                            <CardContent className="p-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">متوفر في المخزون</p>
+                                  <p className="text-3xl font-bold text-green-600">1,100</p>
+                                  <p className="text-sm text-green-600">88% من الإجمالي</p>
+                                </div>
+                                <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                  <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-yellow-50 to-yellow-100 hover:shadow-xl transition-shadow">
+                            <CardContent className="p-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">نقص في المخزون</p>
+                                  <p className="text-3xl font-bold text-yellow-600">85</p>
+                                  <p className="text-sm text-yellow-600">يحتاج إعادة تعبئة</p>
+                                </div>
+                                <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                  <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-red-50 to-red-100 hover:shadow-xl transition-shadow">
+                            <CardContent className="p-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">غير متوفر</p>
+                                  <p className="text-3xl font-bold text-red-600">65</p>
+                                  <p className="text-sm text-red-600">نفذ من المخزون</p>
+                                </div>
+                                <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
+                                  <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Enhanced Inventory Value */}
+                        <Card className="shadow-lg bg-gradient-to-br from-purple-50 to-indigo-50">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Package className="h-5 w-5 text-purple-600" />
+                              القيمة الإجمالية للمخزون
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-center py-8">
+                              <div className="text-4xl font-bold text-purple-600 mb-2">245,000 د.ل</div>
+                              <p className="text-gray-600">القيمة الإجمالية للمنتجات في المخزون</p>
+                              <div className="mt-4 flex justify-center">
+                                <div className="relative w-32 h-32">
+                                  <div className="w-32 h-32 rounded-full" style={{
+                                    background: 'conic-gradient(#8B5CF6 0% 82%, #E5E7EB 82% 100%)'
+                                  }} />
+                                  <div className="absolute inset-0 m-4 rounded-full bg-white" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-lg font-bold text-purple-600">82%</span>
                                   </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className="font-bold text-gray-900">{category.value.toLocaleString()} د.ل</p>
-                                  <p className="text-sm text-gray-600">{category.percentage}%</p>
-                                </div>
                               </div>
-                            ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </>
+                    )}
+
+                    {activeInventoryView === 'توزيع المنتجات' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <PieChart className="h-5 w-5 text-blue-600" />
+                            توزيع المنتجات حسب التصنيف
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center justify-center mb-6">
+                            <div className="relative w-48 h-48">
+                              <div className="w-48 h-48 rounded-full" style={{
+                                background: 'conic-gradient(#3B82F6 0% 51%, #10B981 51% 86%, #F59E0B 86% 100%)'
+                              }} />
+                              <div className="absolute inset-0 m-6 rounded-full bg-white" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-lg font-bold">100%</span>
+                              </div>
+                            </div>
+                            <div className="ml-6 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm">ملابس (51%)</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <span className="text-sm">أحذية (35%)</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                <span className="text-sm">إكسسوارات (14%)</span>
+                              </div>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
-                    </TabsContent>
+                    )}
 
-                    <TabsContent value="اتجاهات" className="space-y-6">
-                      <Card>
+                    {activeInventoryView === 'اتجاهات المخزون' && (
+                      <Card className="shadow-lg">
                         <CardHeader>
-                          <CardTitle>اتجاهات المخزون الشهرية</CardTitle>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-green-600" />
+                            اتجاهات المخزون الشهرية
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
@@ -6321,7 +7523,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                               { month: 'مايو', inStock: 1120, outOfStock: 55 },
                               { month: 'يونيو', inStock: 1080, outOfStock: 85 }
                             ].map((month, index) => (
-                              <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                              <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                                 <div>
                                   <p className="font-medium text-gray-900">{month.month}</p>
                                   <p className="text-sm text-gray-600">
@@ -6331,7 +7533,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                                 <div className="flex items-center gap-4">
                                   <div className="w-32 bg-gray-200 rounded-full h-3">
                                     <div
-                                      className="bg-green-500 h-3 rounded-full"
+                                      className="bg-gradient-to-r from-green-500 to-green-400 h-3 rounded-full"
                                       style={{ width: `${(month.inStock / 1200) * 100}%` }}
                                     ></div>
                                   </div>
@@ -6344,12 +7546,15 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                           </div>
                         </CardContent>
                       </Card>
-                    </TabsContent>
+                    )}
 
-                    <TabsContent value="تنبيهات" className="space-y-6">
-                      <Card>
+                    {activeInventoryView === 'تنبيهات المخزون' && (
+                      <Card className="shadow-lg bg-gradient-to-r from-red-50 to-yellow-50">
                         <CardHeader>
-                          <CardTitle>تنبيهات المخزون</CardTitle>
+                          <CardTitle className="flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-red-600" />
+                            تنبيهات المخزون
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
@@ -6383,152 +7588,229 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                           </div>
                         </CardContent>
                       </Card>
-                    </TabsContent>
-                  </Tabs>
+                    )}
+
+                    {activeInventoryView === 'تحليل الأداء' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-purple-600" />
+                            تحليل أداء المخزون
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-3xl font-bold text-purple-600 mb-4">94%</p>
+                            <p className="text-gray-600 mb-6">كفاءة إدارة المخزون</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-green-600">88%</p>
+                                <p className="text-sm text-gray-600">معدل التوفر</p>
+                              </div>
+                              <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-blue-600">12%</p>
+                                <p className="text-sm text-gray-600">معدل النقص</p>
+                              </div>
+                              <div className="bg-yellow-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-yellow-600">95%</p>
+                                <p className="text-sm text-gray-600">دقة الجرد</p>
+                              </div>
+                              <div className="bg-purple-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-purple-600">7 يوم</p>
+                                <p className="text-sm text-gray-600">متوسط وقت التعبئة</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 </div>
               )}
 
               {activeSection === 'analytics-customers' && (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">تقارير العملاء</h2>
-                      <p className="text-gray-600">تحليل شامل لبيانات العملاء وسلوكياتهم</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline">
-                        <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l4-4m-4 4l-4-4m8 2h3m-3 4h3m-6-8h3m-3 4h3" />
-                        </svg>
-                        تصدير التقرير
-                      </Button>
-                      <Button>
-                        <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        تحديث البيانات
-                      </Button>
-                    </div>
+                <div className="flex">
+                  {/* Sidebar */}
+                  <div className="w-64 bg-white shadow-lg p-4 space-y-2">
+                    <h3 className="font-bold text-gray-800 mb-4">تقارير العملاء</h3>
+                    <button
+                      onClick={() => handleCustomersViewChange('نظرة عامة')}
+                      className={`w-full text-right p-2 rounded-lg ${activeCustomersView === 'نظرة عامة' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      نظرة عامة
+                    </button>
+                    <button
+                      onClick={() => handleCustomersViewChange('العملاء الأعلى')}
+                      className={`w-full text-right p-2 rounded-lg ${activeCustomersView === 'العملاء الأعلى' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      العملاء الأعلى
+                    </button>
+                    <button
+                      onClick={() => handleCustomersViewChange('شرائح العملاء')}
+                      className={`w-full text-right p-2 rounded-lg ${activeCustomersView === 'شرائح العملاء' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      شرائح العملاء
+                    </button>
+                    <button
+                      onClick={() => handleCustomersViewChange('نمو العملاء')}
+                      className={`w-full text-right p-2 rounded-lg ${activeCustomersView === 'نمو العملاء' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      نمو العملاء
+                    </button>
+                    <button
+                      onClick={() => handleCustomersViewChange('تحليل السلوك')}
+                      className={`w-full text-right p-2 rounded-lg ${activeCustomersView === 'تحليل السلوك' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      تحليل السلوك
+                    </button>
                   </div>
 
-                  <Tabs defaultValue="نظرة عامة" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="نظرة عامة">نظرة عامة</TabsTrigger>
-                      <TabsTrigger value="العملاء الأعلى">العملاء الأعلى</TabsTrigger>
-                      <TabsTrigger value="الشرائح">شرائح العملاء</TabsTrigger>
-                      <TabsTrigger value="النمو">نمو العملاء</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="نظرة عامة" className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <Card>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">إجمالي العملاء</p>
-                                <p className="text-3xl font-bold text-gray-900">2,847</p>
-                                <p className="text-sm text-blue-600">عميل مسجل</p>
-                              </div>
-                              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                                </svg>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">العملاء النشطون</p>
-                                <p className="text-3xl font-bold text-green-600">2,156</p>
-                                <p className="text-sm text-green-600">76% من الإجمالي</p>
-                              </div>
-                              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">عملاء جدد</p>
-                                <p className="text-3xl font-bold text-purple-600">234</p>
-                                <p className="text-sm text-purple-600">هذا الشهر</p>
-                              </div>
-                              <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                                <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                                </svg>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-600">متوسط قيمة الطلب</p>
-                                <p className="text-3xl font-bold text-yellow-600">145 د.ل</p>
-                                <p className="text-sm text-yellow-600">لكل عميل</p>
-                              </div>
-                              <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                                <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                </svg>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
+                  {/* Main Content */}
+                  <div className="flex-1 space-y-6 p-6">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">تقارير العملاء</h2>
+                        <p className="text-gray-600">تحليل شامل لبيانات العملاء وسلوكياتهم</p>
                       </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline">
+                          <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l4-4m-4 4l-4-4m8 2h3m-3 4h3m-6-8h3m-3 4h3" />
+                          </svg>
+                          تصدير التقرير
+                        </Button>
+                        <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+                          <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          تحديث البيانات
+                        </Button>
+                      </div>
+                    </div>
 
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>شرائح العملاء</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {[
-                              { segment: 'عملاء جدد', count: 234, percentage: 8.2, color: 'bg-green-500' },
-                              { segment: 'عملاء منتظمون', count: 1892, percentage: 66.5, color: 'bg-blue-500' },
-                              { segment: 'عملاء VIP', count: 456, percentage: 16.0, color: 'bg-purple-500' },
-                              { segment: 'عملاء غير نشطين', count: 265, percentage: 9.3, color: 'bg-gray-500' }
-                            ].map((segment, index) => (
-                              <div key={index} className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-4 h-4 rounded-full ${segment.color}`}></div>
-                                  <span className="font-medium text-gray-900">{segment.segment}</span>
+                    {activeCustomersView === 'نظرة عامة' && (
+                      <>
+                        {/* Enhanced Key Metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                          <Card className="shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-xl transition-shadow">
+                            <CardContent className="p-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">إجمالي العملاء</p>
+                                  <p className="text-3xl font-bold text-blue-600">2,847</p>
+                                  <p className="text-sm text-blue-600">عميل مسجل</p>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                  <div className="w-48 bg-gray-200 rounded-full h-3">
-                                    <div
-                                      className={`${segment.color} h-3 rounded-full`}
-                                      style={{ width: `${segment.percentage}%` }}
-                                    ></div>
-                                  </div>
-                                  <span className="text-sm text-gray-600 w-16 text-center">
-                                    {segment.count} ({segment.percentage}%)
-                                  </span>
+                                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                  <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                  </svg>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
+                            </CardContent>
+                          </Card>
 
-                    <TabsContent value="العملاء الأعلى" className="space-y-6">
-                      <Card>
+                          <Card className="shadow-lg bg-gradient-to-br from-green-50 to-green-100 hover:shadow-xl transition-shadow">
+                            <CardContent className="p-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">العملاء النشطون</p>
+                                  <p className="text-3xl font-bold text-green-600">2,156</p>
+                                  <p className="text-sm text-green-600">76% من الإجمالي</p>
+                                </div>
+                                <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                  <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-purple-50 to-purple-100 hover:shadow-xl transition-shadow">
+                            <CardContent className="p-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">عملاء جدد</p>
+                                  <p className="text-3xl font-bold text-purple-600">234</p>
+                                  <p className="text-sm text-purple-600">هذا الشهر</p>
+                                </div>
+                                <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                  <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-yellow-50 to-yellow-100 hover:shadow-xl transition-shadow">
+                            <CardContent className="p-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">متوسط قيمة الطلب</p>
+                                  <p className="text-3xl font-bold text-yellow-600">145 د.ل</p>
+                                  <p className="text-sm text-yellow-600">لكل عميل</p>
+                                </div>
+                                <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                  <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Enhanced Customer Segments */}
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <PieChart className="h-5 w-5 text-blue-600" />
+                              شرائح العملاء
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="flex items-center justify-center mb-6">
+                              <div className="relative w-48 h-48">
+                                <div className="w-48 h-48 rounded-full" style={{
+                                  background: 'conic-gradient(#10B981 0% 8.2%, #3B82F6 8.2% 74.7%, #8B5CF6 74.7% 90.7%, #6B7280 90.7% 100%)'
+                                }} />
+                                <div className="absolute inset-0 m-6 rounded-full bg-white" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <span className="text-lg font-bold">100%</span>
+                                </div>
+                              </div>
+                              <div className="ml-6 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                  <span className="text-sm">عملاء جدد (8.2%)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                  <span className="text-sm">عملاء منتظمون (66.5%)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                                  <span className="text-sm">عملاء VIP (16%)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                                  <span className="text-sm">عملاء غير نشطين (9.3%)</span>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </>
+                    )}
+
+                    {activeCustomersView === 'العملاء الأعلى' && (
+                      <Card className="shadow-lg">
                         <CardHeader>
-                          <CardTitle>أفضل العملاء</CardTitle>
+                          <CardTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-green-600" />
+                            أفضل العملاء
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="overflow-x-auto">
@@ -6550,7 +7832,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                                   { name: 'سارة أحمد', orders: 6, totalSpent: 1250, lastOrder: '2024-01-12' },
                                   { name: 'علي محمود', orders: 9, totalSpent: 1680, lastOrder: '2024-01-11' }
                                 ].map((customer, index) => (
-                                  <tr key={index} className="border-b">
+                                  <tr key={index} className="border-b hover:bg-gray-50">
                                     <td className="p-3 font-medium">{customer.name}</td>
                                     <td className="p-3">{customer.orders}</td>
                                     <td className="p-3 font-bold">{customer.totalSpent.toLocaleString()} د.ل</td>
@@ -6565,39 +7847,52 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                           </div>
                         </CardContent>
                       </Card>
-                    </TabsContent>
+                    )}
 
-                    <TabsContent value="الشرائح" className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {[
-                          { segment: 'عملاء جدد', count: 234, percentage: 8.2, color: 'bg-green-500' },
-                          { segment: 'عملاء منتظمون', count: 1892, percentage: 66.5, color: 'bg-blue-500' },
-                          { segment: 'عملاء VIP', count: 456, percentage: 16.0, color: 'bg-purple-500' },
-                          { segment: 'عملاء غير نشطين', count: 265, percentage: 9.3, color: 'bg-gray-500' }
-                        ].map((segment, index) => (
-                          <Card key={index}>
-                            <CardContent className="p-6">
-                              <div className="flex items-center justify-between mb-4">
-                                <div className={`w-12 h-12 rounded-full ${segment.color} flex items-center justify-center`}>
-                                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                                  </svg>
-                                </div>
-                                <Badge variant="outline">{segment.percentage}%</Badge>
-                              </div>
-                              <h3 className="text-lg font-bold text-gray-900 mb-2">{segment.segment}</h3>
-                              <p className="text-2xl font-bold text-gray-700">{segment.count.toLocaleString()}</p>
-                              <p className="text-sm text-gray-600">عميل</p>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="النمو" className="space-y-6">
-                      <Card>
+                    {activeCustomersView === 'شرائح العملاء' && (
+                      <Card className="shadow-lg">
                         <CardHeader>
-                          <CardTitle>نمو قاعدة العملاء</CardTitle>
+                          <CardTitle className="flex items-center gap-2">
+                            <PieChart className="h-5 w-5 text-blue-600" />
+                            توزيع شرائح العملاء
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {[
+                              { segment: 'عملاء جدد', count: 234, percentage: 8.2, color: 'bg-green-500' },
+                              { segment: 'عملاء منتظمون', count: 1892, percentage: 66.5, color: 'bg-blue-500' },
+                              { segment: 'عملاء VIP', count: 456, percentage: 16.0, color: 'bg-purple-500' },
+                              { segment: 'عملاء غير نشطين', count: 265, percentage: 9.3, color: 'bg-gray-500' }
+                            ].map((segment, index) => (
+                              <Card key={index}>
+                                <CardContent className="p-6">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <div className={`w-12 h-12 rounded-full ${segment.color} flex items-center justify-center`}>
+                                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                      </svg>
+                                    </div>
+                                    <Badge variant="outline">{segment.percentage}%</Badge>
+                                  </div>
+                                  <h3 className="text-lg font-bold text-gray-900 mb-2">{segment.segment}</h3>
+                                  <p className="text-2xl font-bold text-gray-700">{segment.count.toLocaleString()}</p>
+                                  <p className="text-sm text-gray-600">عميل</p>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeCustomersView === 'نمو العملاء' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-purple-600" />
+                            نمو قاعدة العملاء
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
@@ -6609,7 +7904,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                               { month: 'مايو', newCustomers: 240, totalCustomers: 3320 },
                               { month: 'يونيو', newCustomers: 234, totalCustomers: 3554 }
                             ].map((month, index) => (
-                              <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                              <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                                 <div>
                                   <p className="font-medium text-gray-900">{month.month}</p>
                                   <p className="text-sm text-gray-600">
@@ -6622,7 +7917,7 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                                   </div>
                                   <div className="w-32 bg-gray-200 rounded-full h-3">
                                     <div
-                                      className="bg-blue-500 h-3 rounded-full"
+                                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full"
                                       style={{ width: `${(month.totalCustomers / 3600) * 100}%` }}
                                     ></div>
                                   </div>
@@ -6632,8 +7927,388 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
                           </div>
                         </CardContent>
                       </Card>
-                    </TabsContent>
-                  </Tabs>
+                    )}
+
+                    {activeCustomersView === 'تحليل السلوك' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-indigo-600" />
+                            تحليل سلوك العملاء
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-3xl font-bold text-indigo-600 mb-4">78%</p>
+                            <p className="text-gray-600 mb-6">معدل رضا العملاء</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="bg-indigo-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-indigo-600">4.2</p>
+                                <p className="text-sm text-gray-600">متوسط التقييم</p>
+                              </div>
+                              <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-blue-600">89%</p>
+                                <p className="text-sm text-gray-600">معدل الإعادة</p>
+                              </div>
+                              <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-green-600">156</p>
+                                <p className="text-sm text-gray-600">عميل عائد</p>
+                              </div>
+                              <div className="bg-purple-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-purple-600">23</p>
+                                <p className="text-sm text-gray-600">يوم متوسط الانتظار</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'analytics-financial' && (
+                <div className="flex">
+                  {/* Sidebar */}
+                  <div className="w-64 bg-white shadow-lg p-4 space-y-2">
+                    <h3 className="font-bold text-gray-800 mb-4">التقارير المالية</h3>
+                    <button
+                      onClick={() => handleFinancialViewChange('نظرة عامة')}
+                      className={`w-full text-right p-2 rounded-lg ${activeFinancialView === 'نظرة عامة' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      نظرة عامة
+                    </button>
+                    <button
+                      onClick={() => handleFinancialViewChange('الإيرادات')}
+                      className={`w-full text-right p-2 rounded-lg ${activeFinancialView === 'الإيرادات' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      الإيرادات
+                    </button>
+                    <button
+                      onClick={() => handleFinancialViewChange('المصروفات')}
+                      className={`w-full text-right p-2 rounded-lg ${activeFinancialView === 'المصروفات' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      المصروفات
+                    </button>
+                    <button
+                      onClick={() => handleFinancialViewChange('الأرباح')}
+                      className={`w-full text-right p-2 rounded-lg ${activeFinancialView === 'الأرباح' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      الأرباح
+                    </button>
+                    <button
+                      onClick={() => handleFinancialViewChange('التدفق النقدي')}
+                      className={`w-full text-right p-2 rounded-lg ${activeFinancialView === 'التدفق النقدي' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      التدفق النقدي
+                    </button>
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="flex-1 space-y-6 p-6">
+                    <h2 className="text-2xl font-bold text-gray-900">التقارير المالية</h2>
+
+                    {activeFinancialView === 'نظرة عامة' && (
+                      <>
+                        {/* Key Financial Metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                          <Card className="shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">إجمالي الإيرادات</h4>
+                              <p className="text-3xl font-bold text-green-600">45,231 د.ل</p>
+                              <p className="text-sm text-gray-600">+20.1% من الشهر الماضي</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-red-50 to-red-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">إجمالي المصروفات</h4>
+                              <p className="text-3xl font-bold text-red-600">12,450 د.ل</p>
+                              <p className="text-sm text-gray-600">-5% من الشهر الماضي</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">صافي الربح</h4>
+                              <p className="text-3xl font-bold text-blue-600">32,781 د.ل</p>
+                              <p className="text-sm text-gray-600">+15% نمو</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">هامش الربح</h4>
+                              <p className="text-3xl font-bold text-purple-600">72.5%</p>
+                              <p className="text-sm text-gray-600">نسبة مئوية</p>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Charts Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Pie Chart - Revenue Distribution */}
+                          <Card className="shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <PieChart className="h-5 w-5 text-green-600" />
+                                توزيع الإيرادات
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="flex items-center justify-center">
+                                <div className="relative w-48 h-48">
+                                  <div className="w-48 h-48 rounded-full" style={{
+                                    background: 'conic-gradient(#10B981 0% 60%, #3B82F6 60% 80%, #F59E0B 80% 95%, #EF4444 95% 100%)'
+                                  }} />
+                                  <div className="absolute inset-0 m-6 rounded-full bg-white" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-lg font-bold">100%</span>
+                                  </div>
+                                </div>
+                                <div className="ml-6 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                    <span className="text-sm">مبيعات المنتجات (60%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                    <span className="text-sm">خدمات (20%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                    <span className="text-sm">عمولات (15%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                    <span className="text-sm">أخرى (5%)</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          {/* Line Chart - Profit Trend */}
+                          <Card className="shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <TrendingUp className="h-5 w-5 text-blue-600" />
+                                اتجاه الأرباح الشهري
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="relative h-48 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4">
+                                <div className="flex items-end justify-between h-full">
+                                  {Array.from({length: 12}, (_, i) => (
+                                    <div key={i} className="flex flex-col items-center">
+                                      <div
+                                        className="w-4 bg-gradient-to-t from-blue-500 to-blue-400 rounded-t"
+                                        style={{height: `${30 + Math.sin(i/2) * 40}%`}}
+                                      ></div>
+                                      <span className="text-xs text-gray-600 mt-1">{i+1}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="absolute bottom-2 left-2 text-xs text-gray-600">الأشهر</div>
+                                <div className="absolute top-2 right-2 text-xs text-gray-600">الأرباح (د.ل)</div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Additional Financial Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <Card className="shadow-lg bg-gradient-to-br from-indigo-50 to-indigo-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">التدفق النقدي</h4>
+                              <p className="text-3xl font-bold text-indigo-600">+18,450 د.ل</p>
+                              <p className="text-sm text-gray-600">هذا الشهر</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-pink-50 to-pink-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">الضرائب المستحقة</h4>
+                              <p className="text-3xl font-bold text-pink-600">3,250 د.ل</p>
+                              <p className="text-sm text-gray-600">للشهر الحالي</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-teal-50 to-teal-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">الديون المستحقة</h4>
+                              <p className="text-3xl font-bold text-teal-600">1,750 د.ل</p>
+                              <p className="text-sm text-gray-600">للعملاء</p>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Bar Chart - Monthly Comparison */}
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <BarChart3 className="h-5 w-5 text-purple-600" />
+                              مقارنة الإيرادات الشهرية
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="flex items-end justify-center gap-4 h-48">
+                              {[
+                                {label: 'يناير', value: 40},
+                                {label: 'فبراير', value: 55},
+                                {label: 'مارس', value: 70},
+                                {label: 'أبريل', value: 85},
+                                {label: 'مايو', value: 60},
+                                {label: 'يونيو', value: 75}
+                              ].map((item, i) => (
+                                <div key={i} className="flex flex-col items-center">
+                                  <div
+                                    className="w-12 bg-gradient-to-t from-purple-500 to-purple-400 rounded-t"
+                                    style={{height: `${item.value}%`}}
+                                  ></div>
+                                  <span className="text-xs text-gray-600 mt-1">{item.label}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </>
+                    )}
+
+                    {activeFinancialView === 'الإيرادات' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-green-600" />
+                            تفاصيل الإيرادات
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-4xl font-bold text-green-600 mb-4">45,231 د.ل</p>
+                            <p className="text-gray-600 mb-6">إجمالي الإيرادات</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-green-600">15,750</p>
+                                <p className="text-sm text-gray-600">شهري</p>
+                              </div>
+                              <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-blue-600">525</p>
+                                <p className="text-sm text-gray-600">يومي</p>
+                              </div>
+                              <div className="bg-purple-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-purple-600">+20.1%</p>
+                                <p className="text-sm text-gray-600">نمو</p>
+                              </div>
+                              <div className="bg-orange-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-orange-600">89%</p>
+                                <p className="text-sm text-gray-600">من المبيعات</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeFinancialView === 'المصروفات' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-red-600" />
+                            تفاصيل المصروفات
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-4xl font-bold text-red-600 mb-4">12,450 د.ل</p>
+                            <p className="text-gray-600 mb-6">إجمالي المصروفات</p>
+                            <div className="space-y-4">
+                              <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
+                                <span className="text-sm">مصروفات التشغيل</span>
+                                <span className="font-bold text-red-600">8,250 د.ل</span>
+                              </div>
+                              <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
+                                <span className="text-sm">مصروفات التسويق</span>
+                                <span className="font-bold text-red-600">2,800 د.ل</span>
+                              </div>
+                              <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
+                                <span className="text-sm">مصروفات أخرى</span>
+                                <span className="font-bold text-red-600">1,400 د.ل</span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeFinancialView === 'الأرباح' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <PieChart className="h-5 w-5 text-blue-600" />
+                            تحليل الأرباح
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="text-center">
+                              <p className="text-3xl font-bold text-blue-600 mb-2">72.5%</p>
+                              <p className="text-gray-600">هامش الربح</p>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex justify-between">
+                                <span className="text-sm">إجمالي الإيرادات</span>
+                                <span className="font-bold">45,231 د.ل</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-sm">إجمالي المصروفات</span>
+                                <span className="font-bold text-red-600">12,450 د.ل</span>
+                              </div>
+                              <div className="flex justify-between border-t pt-2">
+                                <span className="font-bold">صافي الربح</span>
+                                <span className="font-bold text-green-600">32,781 د.ل</span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeFinancialView === 'التدفق النقدي' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Activity className="h-5 w-5 text-indigo-600" />
+                            التدفق النقدي
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-3xl font-bold text-indigo-600 mb-4">+18,450 د.ل</p>
+                            <p className="text-gray-600 mb-6">تدفق نقدي إيجابي هذا الشهر</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="bg-indigo-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-indigo-600">+25,000</p>
+                                <p className="text-sm text-gray-600">إيرادات</p>
+                              </div>
+                              <div className="bg-red-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-red-600">-6,550</p>
+                                <p className="text-sm text-gray-600">مصروفات</p>
+                              </div>
+                              <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-green-600">+12,450</p>
+                                <p className="text-sm text-gray-600">صافي</p>
+                              </div>
+                              <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-blue-600">89%</p>
+                                <p className="text-sm text-gray-600">كفاءة</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -8501,23 +10176,386 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               )}
 
               {activeSection === 'analytics-sales' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-900">تقارير المبيعات</h2>
-                  <Card className="shadow-lg">
-                    <CardContent className="p-6">
-                      <p className="text-sm text-gray-600 mb-4">تقارير تفصيلية للمبيعات</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="text-center p-4 bg-blue-50 rounded-lg">
-                          <h4 className="font-bold text-gray-800 mb-2">المبيعات اليومية</h4>
-                          <p className="text-2xl font-bold text-blue-600">1,250 د.ل</p>
+                <div className="flex">
+                  {/* Sidebar */}
+                  <div className="w-64 bg-white shadow-lg p-4 space-y-2">
+                    <h3 className="font-bold text-gray-800 mb-4">تقارير المبيعات</h3>
+                    <button
+                      onClick={() => handleSalesViewChange('نظرة عامة')}
+                      className={`w-full text-right p-2 rounded-lg ${activeSalesView === 'نظرة عامة' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      نظرة عامة
+                    </button>
+                    <button
+                      onClick={() => handleSalesViewChange('المبيعات اليومية')}
+                      className={`w-full text-right p-2 rounded-lg ${activeSalesView === 'المبيعات اليومية' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      المبيعات اليومية
+                    </button>
+                    <button
+                      onClick={() => handleSalesViewChange('المبيعات الشهرية')}
+                      className={`w-full text-right p-2 rounded-lg ${activeSalesView === 'المبيعات الشهرية' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      المبيعات الشهرية
+                    </button>
+                    <button
+                      onClick={() => handleSalesViewChange('المبيعات السنوية')}
+                      className={`w-full text-right p-2 rounded-lg ${activeSalesView === 'المبيعات السنوية' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      المبيعات السنوية
+                    </button>
+                    <button
+                      onClick={() => handleSalesViewChange('المرابيح')}
+                      className={`w-full text-right p-2 rounded-lg ${activeSalesView === 'المرابيح' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      المرابيح
+                    </button>
+                    <button
+                      onClick={() => handleSalesViewChange('المنتجات المسترجعة')}
+                      className={`w-full text-right p-2 rounded-lg ${activeSalesView === 'المنتجات المسترجعة' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      المنتجات المسترجعة
+                    </button>
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="flex-1 space-y-6 p-6">
+                    <h2 className="text-2xl font-bold text-gray-900">تقارير المبيعات</h2>
+
+                    {activeSalesView === 'نظرة عامة' && (
+                      <>
+                        {/* Key Metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                          <Card className="shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">المبيعات اليومية</h4>
+                              <p className="text-3xl font-bold text-blue-600">1,250 د.ل</p>
+                              <p className="text-sm text-gray-600">+5% من أمس</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">المبيعات الشهرية</h4>
+                              <p className="text-3xl font-bold text-green-600">15,750 د.ل</p>
+                              <p className="text-sm text-gray-600">+12% من الشهر الماضي</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">المبيعات السنوية</h4>
+                              <p className="text-3xl font-bold text-purple-600">189,000 د.ل</p>
+                              <p className="text-sm text-gray-600">+25% من العام الماضي</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">نسبة المرابيح</h4>
+                              <p className="text-3xl font-bold text-orange-600">23%</p>
+                              <p className="text-sm text-gray-600">من إجمالي المبيعات</p>
+                            </CardContent>
+                          </Card>
                         </div>
-                        <div className="text-center p-4 bg-green-50 rounded-lg">
-                          <h4 className="font-bold text-gray-800 mb-2">المبيعات الشهرية</h4>
-                          <p className="text-2xl font-bold text-green-600">15,750 د.ل</p>
+
+                        {/* Charts Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Pie Chart - Product Sales Distribution */}
+                          <Card className="shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <PieChart className="h-5 w-5 text-blue-600" />
+                                توزيع المبيعات حسب المنتجات
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="flex items-center justify-center">
+                                <div className="relative w-48 h-48">
+                                  <div className="w-48 h-48 rounded-full" style={{
+                                    background: 'conic-gradient(#3B82F6 0% 45%, #10B981 45% 70%, #F59E0B 70% 85%, #EF4444 85% 100%)'
+                                  }} />
+                                  <div className="absolute inset-0 m-6 rounded-full bg-white" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-lg font-bold">100%</span>
+                                  </div>
+                                </div>
+                                <div className="ml-6 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                    <span className="text-sm">ملابس (45%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                    <span className="text-sm">إكسسوارات (25%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                    <span className="text-sm">أحذية (15%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                    <span className="text-sm">عطور (15%)</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          {/* Line Chart - Sales Trend */}
+                          <Card className="shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <TrendingUp className="h-5 w-5 text-green-600" />
+                                اتجاه المبيعات الشهري
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="relative h-48 bg-gradient-to-br from-green-50 to-blue-50 rounded-lg p-4">
+                                <div className="flex items-end justify-between h-full">
+                                  {Array.from({length: 12}, (_, i) => (
+                                    <div key={i} className="flex flex-col items-center">
+                                      <div
+                                        className="w-4 bg-gradient-to-t from-green-500 to-green-400 rounded-t"
+                                        style={{height: `${20 + Math.sin(i/2) * 60}%`}}
+                                      ></div>
+                                      <span className="text-xs text-gray-600 mt-1">{i+1}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="absolute bottom-2 left-2 text-xs text-gray-600">الأشهر</div>
+                                <div className="absolute top-2 right-2 text-xs text-gray-600">المبيعات (د.ل)</div>
+                              </div>
+                            </CardContent>
+                          </Card>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+
+                        {/* Additional Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <Card className="shadow-lg bg-gradient-to-br from-red-50 to-red-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">نسبة المنتجات المسترجعة</h4>
+                              <p className="text-3xl font-bold text-red-600">2.5%</p>
+                              <p className="text-sm text-gray-600">من إجمالي المبيعات</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-indigo-50 to-indigo-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">الزوار المتكررون</h4>
+                              <p className="text-3xl font-bold text-indigo-600">1,247</p>
+                              <p className="text-sm text-gray-600">زائر هذا الشهر</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-pink-50 to-pink-100">
+                            <CardContent className="p-6 text-center">
+                              <h4 className="font-bold text-gray-800 mb-2">الزوار من الهدايا</h4>
+                              <p className="text-3xl font-bold text-pink-600">89</p>
+                              <p className="text-sm text-gray-600">زائر من حملات الهدايا</p>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Bar Chart - Retail Sales */}
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <BarChart3 className="h-5 w-5 text-purple-600" />
+                              نسبة البيع بالتجزئة
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="flex items-end justify-center gap-4 h-48">
+                              {[
+                                {label: 'الأسبوع 1', value: 30},
+                                {label: 'الأسبوع 2', value: 45},
+                                {label: 'الأسبوع 3', value: 60},
+                                {label: 'الأسبوع 4', value: 75}
+                              ].map((item, i) => (
+                                <div key={i} className="flex flex-col items-center">
+                                  <div
+                                    className="w-12 bg-gradient-to-t from-purple-500 to-purple-400 rounded-t"
+                                    style={{height: `${item.value}%`}}
+                                  ></div>
+                                  <span className="text-xs text-gray-600 mt-1">{item.label}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </>
+                    )}
+
+                    {activeSalesView === 'المبيعات اليومية' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-blue-600" />
+                            المبيعات اليومية - تفاصيل
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-4xl font-bold text-blue-600 mb-4">1,250 د.ل</p>
+                            <p className="text-gray-600 mb-6">إجمالي المبيعات اليوم</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-blue-600">45</p>
+                                <p className="text-sm text-gray-600">طلب مكتمل</p>
+                              </div>
+                              <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-green-600">12</p>
+                                <p className="text-sm text-gray-600">طلب جديد</p>
+                              </div>
+                              <div className="bg-yellow-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-yellow-600">3</p>
+                                <p className="text-sm text-gray-600">طلب معلق</p>
+                              </div>
+                              <div className="bg-purple-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-purple-600">156</p>
+                                <p className="text-sm text-gray-600">منتج مباع</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSalesView === 'المبيعات الشهرية' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-green-600" />
+                            المبيعات الشهرية - تفاصيل
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-4xl font-bold text-green-600 mb-4">15,750 د.ل</p>
+                            <p className="text-gray-600 mb-6">إجمالي المبيعات الشهرية</p>
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <span className="text-sm">متوسط المبيعات اليومية</span>
+                                <span className="font-bold text-green-600">525 د.ل</span>
+                              </div>
+                              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <span className="text-sm">أفضل يوم مبيعات</span>
+                                <span className="font-bold text-green-600">890 د.ل</span>
+                              </div>
+                              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <span className="text-sm">عدد الطلبات</span>
+                                <span className="font-bold text-green-600">234 طلب</span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSalesView === 'المبيعات السنوية' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-purple-600" />
+                            المبيعات السنوية - تفاصيل
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-4xl font-bold text-purple-600 mb-4">189,000 د.ل</p>
+                            <p className="text-gray-600 mb-6">إجمالي المبيعات السنوية</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="bg-purple-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-purple-600">15,750</p>
+                                <p className="text-sm text-gray-600">متوسط شهري</p>
+                              </div>
+                              <div className="bg-indigo-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-indigo-600">525</p>
+                                <p className="text-sm text-gray-600">متوسط يومي</p>
+                              </div>
+                              <div className="bg-pink-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-pink-600">2,847</p>
+                                <p className="text-sm text-gray-600">إجمالي الطلبات</p>
+                              </div>
+                              <div className="bg-orange-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-orange-600">+25%</p>
+                                <p className="text-sm text-gray-600">نمو عن العام الماضي</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSalesView === 'المرابيح' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <PieChart className="h-5 w-5 text-orange-600" />
+                            تحليل المرابيح
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="text-center">
+                              <p className="text-3xl font-bold text-orange-600 mb-2">23%</p>
+                              <p className="text-gray-600">نسبة المرابيح</p>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex justify-between">
+                                <span className="text-sm">إجمالي المبيعات</span>
+                                <span className="font-bold">15,750 د.ل</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-sm">إجمالي التكاليف</span>
+                                <span className="font-bold text-red-600">12,125 د.ل</span>
+                              </div>
+                              <div className="flex justify-between border-t pt-2">
+                                <span className="font-bold">صافي الربح</span>
+                                <span className="font-bold text-green-600">3,625 د.ل</span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSalesView === 'المنتجات المسترجعة' && (
+                      <Card className="shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <RefreshCw className="h-5 w-5 text-red-600" />
+                            المنتجات المسترجعة
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <p className="text-3xl font-bold text-red-600 mb-4">2.5%</p>
+                            <p className="text-gray-600 mb-6">نسبة المنتجات المسترجعة</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="bg-red-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-red-600">45</p>
+                                <p className="text-sm text-gray-600">منتج مسترجع</p>
+                              </div>
+                              <div className="bg-orange-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-orange-600">394</p>
+                                <p className="text-sm text-gray-600">منتج مباع</p>
+                              </div>
+                              <div className="bg-green-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-green-600">89%</p>
+                                <p className="text-sm text-gray-600">نسبة النجاح</p>
+                              </div>
+                              <div className="bg-blue-50 p-4 rounded-lg">
+                                <p className="text-2xl font-bold text-blue-600">1,125 د.ل</p>
+                                <p className="text-sm text-gray-600">قيمة المسترجعات</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -8568,30 +10606,2470 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
 
 
 
-              {activeSection === 'pos' && (
+              {/* Services Sections */}
+              {activeSection === 'services-logistics' && (
                 <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-900">نقاط البيع</h2>
+                  {/* Enhanced Header */}
+                  <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 text-white shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-bold mb-2">🚚 إدارة طرق الشحن والتوصيل ✨</h2>
+                        <p className="text-blue-100 text-lg">إدارة شركات الشحن والتوصيل مع إمكانية تحديد المواقع الجغرافية</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                          <Truck className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div></div>
+                    <Button
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                      onClick={() => setLogisticsModalOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      إضافة خدمة شحن جديدة
+                    </Button>
+                  </div>
+
+                  {/* Logistics Modal */}
+                  {logisticsModalOpen && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+                      <div className="bg-white rounded-2xl p-6 w-full max-w-4xl mx-4 shadow-2xl border max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold text-gray-900">إضافة خدمة شحن جديدة 🚚✨</h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setLogisticsModalOpen(false)}
+                            className="hover:bg-gray-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-6">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h4 className="font-bold text-blue-900 mb-2">معلومات الشركة الأساسية</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <Label htmlFor="service-name">اسم الخدمة</Label>
+                                <Input
+                                  id="service-name"
+                                  placeholder="مثال: شركة الشحن السريع"
+                                  value={logisticsForm.name}
+                                  onChange={(e) => setLogisticsForm({...logisticsForm, name: e.target.value})}
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="service-phone">رقم الهاتف</Label>
+                                <Input
+                                  id="service-phone"
+                                  placeholder="+218 91 000 0000"
+                                  value={logisticsForm.phone}
+                                  onChange={(e) => setLogisticsForm({...logisticsForm, phone: e.target.value})}
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="service-email">البريد الإلكتروني</Label>
+                                <Input
+                                  id="service-email"
+                                  placeholder="info@company.com"
+                                  value={logisticsForm.email}
+                                  onChange={(e) => setLogisticsForm({...logisticsForm, email: e.target.value})}
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="service-city">المدينة</Label>
+                                <Select value={logisticsForm.city} onValueChange={(value) => setLogisticsForm({...logisticsForm, city: value})}>
+                                  <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="اختر المدينة" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {libyanCities.map((city) => (
+                                      <SelectItem key={city.id} value={city.name}>
+                                        {city.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="md:col-span-2">
+                                <Label htmlFor="service-address">العنوان</Label>
+                                <Input
+                                  id="service-address"
+                                  placeholder="طرابلس، ليبيا - الدائرة السابعة"
+                                  value={logisticsForm.address}
+                                  onChange={(e) => setLogisticsForm({...logisticsForm, address: e.target.value})}
+                                  className="mt-1"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <h4 className="font-bold text-green-900 mb-2">تحديد الموقع الجغرافي</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <Label>خط العرض (Latitude)</Label>
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  placeholder="32.8872"
+                                  value={logisticsForm.lat}
+                                  onChange={(e) => setLogisticsForm({...logisticsForm, lat: e.target.value})}
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label>خط الطول (Longitude)</Label>
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  placeholder="13.1913"
+                                  value={logisticsForm.lng}
+                                  onChange={(e) => setLogisticsForm({...logisticsForm, lng: e.target.value})}
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '300px' }}>
+                                  <MapContainer
+                                    center={[32.8872, 13.1913]}
+                                    zoom={7}
+                                    style={{ height: '100%', width: '100%' }}
+                                  >
+                                    <MapClickHandler setLogisticsForm={setLogisticsForm} logisticsForm={logisticsForm} />
+                                    <TileLayer
+                                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                    />
+                                    {(logisticsForm.lat && logisticsForm.lng) && (
+                                      <Marker position={[parseFloat(logisticsForm.lat), parseFloat(logisticsForm.lng)]}>
+                                        <Popup>الموقع المحدد</Popup>
+                                      </Marker>
+                                    )}
+                                    <Marker position={[32.8872, 13.1913]}>
+                                      <Popup>طرابلس، ليبيا</Popup>
+                                    </Marker>
+                                  </MapContainer>
+                                  <div className="absolute top-2 left-2 bg-white p-2 rounded shadow text-sm">
+                                    انقر على الخريطة لتحديد الموقع
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3 pt-4">
+                            <Button
+                              onClick={handleSaveLogistics}
+                              className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                            >
+                              <Save className="h-4 w-4 mr-2" />
+                              🚚 إضافة خدمة الشحن ✨
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setLogisticsModalOpen(false)}
+                              className="transition-all duration-200 hover:bg-gray-50"
+                            >
+                              إلغاء
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Logistics Map Modal */}
+                  {showLogisticsMapModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+                      <div className="bg-white rounded-2xl p-6 w-full max-w-4xl mx-4 shadow-2xl border max-h-[90vh] overflow-hidden">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold text-gray-900">اختر موقع الشركة من الخريطة</h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowLogisticsMapModal(false)}
+                            className="hover:bg-gray-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="relative">
+                            <Input
+                              id="logistics-map-search"
+                              placeholder="ابحث عن الموقع في ليبيا..."
+                              className="pr-10"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleLogisticsMapSearch();
+                                }
+                              }}
+                            />
+                            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 cursor-pointer" onClick={handleLogisticsMapSearch} />
+                          </div>
+
+                          <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '450px' }}>
+                            {!logisticsMapLoaded ? (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-green-50">
+                                <div className="text-center">
+                                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                  <h4 className="text-xl font-bold text-gray-800 mb-2">جاري تحميل الخريطة</h4>
+                                  <p className="text-gray-600 mb-2">يرجى الانتظار قليلاً...</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <MapContainer center={[32.8872, 13.1913]} zoom={7} style={{ height: '450px', width: '100%' }}>
+                                <TileLayer
+                                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                />
+                                <Marker position={[32.8872, 13.1913]}>
+                                  <Popup>طرابلس، ليبيا</Popup>
+                                </Marker>
+                              </MapContainer>
+                            )}
+                          </div>
+
+                          {logisticsSelectedCoordinates && (
+                            <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <h4 className="font-bold text-green-900">✅ تم تحديد الموقع بنجاح!</h4>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <div className="bg-white p-2 rounded border">
+                                  <span className="text-gray-600 block">خط العرض:</span>
+                                  <span className="font-mono font-bold text-gray-800">{logisticsSelectedCoordinates.lat.toFixed(6)}</span>
+                                </div>
+                                <div className="bg-white p-2 rounded border">
+                                  <span className="text-gray-600 block">خط الطول:</span>
+                                  <span className="font-mono font-bold text-gray-800">{logisticsSelectedCoordinates.lng.toFixed(6)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex gap-3">
+                            <Button
+                              onClick={() => setShowLogisticsMapModal(false)}
+                              className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                            >
+                              <MapPin className="h-4 w-4 mr-2" />
+                              تأكيد الموقع المختار
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setShowLogisticsMapModal(false)}
+                              className="transition-all duration-200 hover:bg-gray-50"
+                            >
+                              إلغاء
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shipping Companies List */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {shippingCompanies.map((company, index) => (
+                      <Card key={index} className="shadow-lg hover:shadow-xl transition-shadow bg-transparent">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="w-32 h-32 bg-transparent flex items-center justify-center mx-auto mb-4">
+                              <img
+                                src={`/data/transport/${company.icon}`}
+                                alt={company.name}
+                                className={`${
+                                  company.icon === 'ZAM.png' || company.icon === 'darbsail.png'
+                                    ? 'w-40 h-40'
+                                    : 'w-32 h-32'
+                                } object-contain`}
+                                style={{
+                                  backgroundColor: (company.icon === 'hudhud.jpeg' || company.icon === 'presto.jpg' || company.icon === 'wings.webp') ? 'transparent' : 'transparent'
+                                }}
+                              />
+                            </div>
+
+                          </div>
+                          
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-4 w-4 text-gray-400" />
+                              <span>{company.phone}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-4 w-4 text-gray-400" />
+                              <span>{company.email}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-gray-400" />
+                              <span>{company.location}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-4">
+                            <Button size="sm" variant="outline">عرض الموقع</Button>
+                            <Button size="sm" variant="outline" onClick={() => setBankModalOpen(true)}>تعديل</Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'services-shipping-tracking' && (
+                <div className="space-y-6">
+                  {/* Enhanced Header */}
+                  <div className="bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 rounded-2xl p-8 text-white shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-bold mb-2">📦 تتبع الشحنات ✨</h2>
+                        <p className="text-green-100 text-lg">تتبع الطلبات والشحنات في الوقت الفعلي</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                          <Package className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div></div>
+                    <div className="flex gap-2">
+                      <div className="relative">
+                        <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input placeholder="البحث برقم الطلب أو رقم الشحنة..." className="pr-10 w-64" />
+                      </div>
+                      <Button variant="outline" size="sm">
+                        <Filter className="h-4 w-4 mr-2" />
+                        فلترة
+                      </Button>
+                    </div>
+                  </div>
+
                   <Card className="shadow-lg">
-                    <CardContent className="p-6">
-                      <p className="text-sm text-gray-600 mb-4">نظام نقاط البيع المتكامل</p>
-                      <div className="text-center p-8 bg-gray-50 rounded-lg">
-                        <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                        <p className="text-gray-600">محتوى نظام نقاط البيع سيتم إضافته قريباً</p>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Package className="h-5 w-5 text-blue-600" />
+                        الشحنات
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-right p-3 font-medium">رقم الطلب</th>
+                              <th className="text-right p-3 font-medium">العميل</th>
+                              <th className="text-right p-3 font-medium">رقم الشحنة</th>
+                              <th className="text-right p-3 font-medium">تكلفة الشحن</th>
+                              <th className="text-right p-3 font-medium">العملة</th>
+                              <th className="text-right p-3 font-medium">عدد الصناديق</th>
+                              <th className="text-right p-3 font-medium">مستوى الخدمة</th>
+                              <th className="text-right p-3 font-medium">شركة الشحن</th>
+                              <th className="text-right p-3 font-medium">حالة الشحنة</th>
+                              <th className="text-right p-3 font-medium">تاريخ التحديث</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[
+                              { order: 'ORD-001', customer: 'أحمد محمد', tracking: 'TRK-12345', cost: '15.00', currency: 'د.ل', boxes: '2', service: 'عادي', company: 'الهدهد', status: 'في الطريق', date: '2025-01-15' },
+                              { order: 'ORD-002', customer: 'فاطمة علي', tracking: 'TRK-67890', cost: '25.00', currency: 'د.ل', boxes: '1', service: 'سريع', company: 'دي اتش ال', status: 'تم التسليم', date: '2025-01-14' },
+                              { order: 'ORD-003', customer: 'عمر حسن', tracking: 'TRK-11111', cost: '18.50', currency: 'د.ل', boxes: '3', service: 'عادي', company: 'ارامكس', status: 'قيد المعالجة', date: '2025-01-13' }
+                            ].map((shipment, index) => (
+                              <tr key={index} className="border-b hover:bg-gray-50">
+                                <td className="p-3 font-medium">{shipment.order}</td>
+                                <td className="p-3">{shipment.customer}</td>
+                                <td className="p-3">{shipment.tracking}</td>
+                                <td className="p-3">{shipment.cost}</td>
+                                <td className="p-3">{shipment.currency}</td>
+                                <td className="p-3">{shipment.boxes}</td>
+                                <td className="p-3">{shipment.service}</td>
+                                <td className="p-3">{shipment.company}</td>
+                                <td className="p-3">
+                                  <Badge className={
+                                    shipment.status === 'تم التسليم' ? 'bg-green-100 text-green-800' :
+                                    shipment.status === 'في الطريق' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                  }>
+                                    {shipment.status}
+                                  </Badge>
+                                </td>
+                                <td className="p-3">{shipment.date}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </CardContent>
                   </Card>
                 </div>
               )}
 
+              {activeSection === 'services-shipping-policies' && (
+                <div className="space-y-6">
+                  {/* Enhanced Header */}
+                  <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-2xl p-8 text-white shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-bold mb-2">💰 تسعير بوليصات الشحن بالجملة ✨</h2>
+                        <p className="text-purple-100 text-lg">إدارة أسعار بوليصات الشحن بالجملة</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                          <DollarSign className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl">
+                      {[
+                        { range: 'من 1 إلى 20 بوليصة شحن', price: '24', currency: 'د.ل', expiry: '2025-10-24', features: ['أسعار تنافسية', 'دعم فني 24/7', 'تتبع في الوقت الفعلي'] },
+                        { range: 'من 21 إلى 200 بوليصة شحن', price: '23', currency: 'د.ل', expiry: '2025-11-24', features: ['أسعار تنافسية', 'دعم فني 24/7', 'تتبع في الوقت الفعلي'] },
+                        { range: 'من 201 إلى 500 بوليصة شحن', price: '21', currency: 'د.ل', expiry: '2025-12-24', features: ['أسعار تنافسية', 'دعم فني 24/7', 'تتبع في الوقت الفعلي'] },
+                        { range: 'من 501 إلى 2000 بوليصة شحن', price: '18.5', currency: 'د.ل', expiry: '2026-01-24', features: ['أسعار تنافسية', 'دعم فني 24/7', 'تتبع في الوقت الفعلي'] },
+                        { range: 'من 2001 إلى 3000 بوليصة شحن', price: '17.5', currency: 'د.ل', expiry: '2026-03-24', features: ['أسعار تنافسية', 'دعم فني 24/7', 'تتبع في الوقت الفعلي'] }
+                      ].map((plan, index) => (
+                        <Card key={index} className="shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-blue-50 to-purple-50">
+                          <CardContent className="p-6">
+                            <div className="text-center mb-4">
+                              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <Package className="h-8 w-8 text-blue-600" />
+                              </div>
+                              <h3 className="font-bold text-gray-900 mb-2">{plan.range}</h3>
+                              <div className="text-3xl font-bold text-blue-600 mb-1">{plan.price}</div>
+                              <div className="text-sm text-gray-600 mb-2">لكل بوليصة شحن</div>
+                              <div className="text-xs text-gray-500 mb-4">تاريخ الانتهاء: {plan.expiry}</div>
+                            </div>
+                            <div className="space-y-2 mb-4 text-center">
+                              {plan.features.map((feature, idx) => (
+                                <div key={idx} className="flex items-center justify-center gap-2 text-sm">
+                                  <Check className="h-4 w-4 text-green-500" />
+                                  <span>{feature}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <Button className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600">
+                              اختيار الخطة
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Card className="shadow-lg bg-gradient-to-r from-yellow-50 to-orange-50">
+                    <CardContent className="p-6 text-center">
+                      <h3 className="text-xl font-bold text-gray-800 mb-2">🎉 عرض خاص لفترة محدودة!</h3>
+                      <p className="text-gray-600 mb-4">خصم 15% على جميع خطط الشحن للعملاء الجدد</p>
+                      <Button className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600">
+                        🚀 احصل على الخصم الآن
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {activeSection === 'services-bidding-routes' && (
+                <div className="space-y-6">
+                  {/* Enhanced Header */}
+                  <div className="bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 rounded-2xl p-8 text-white shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-bold mb-2">🎯 المزايدة على المشوار</h2>
+                        <p className="text-orange-100 text-lg">إدارة السائقين والمركبات للمزايدة على المشوار</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                          <Target className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div></div>
+                    <Button
+                      className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white"
+                      onClick={() => setBiddingModalOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      إضافة سائق جديد
+                    </Button>
+                  </div>
+
+                  {/* Bidding Modal */}
+                  {biddingModalOpen && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+                      <div className="bg-white rounded-2xl p-6 w-full max-w-2xl mx-4 shadow-2xl border">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold text-gray-900">إضافة سائق جديد</h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBiddingModalOpen(false)}
+                            className="hover:bg-gray-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <Label htmlFor="driver-name">اسم بالكامل</Label>
+                              <Input
+                                id="driver-name"
+                                placeholder="أدخل الاسم الكامل"
+                                value={biddingForm.name}
+                                onChange={(e) => setBiddingForm({...biddingForm, name: e.target.value})}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="driver-phone">رقم الموبايل</Label>
+                              <Input
+                                id="driver-phone"
+                                placeholder="أدخل رقم الموبايل"
+                                value={biddingForm.phone}
+                                onChange={(e) => setBiddingForm({...biddingForm, phone: e.target.value})}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="driver-city">المدينة</Label>
+                              <Select value={biddingForm.city} onValueChange={(value) => setBiddingForm({...biddingForm, city: value})}>
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder="اختر المدينة" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {libyanCities.map((city) => (
+                                    <SelectItem key={city.id} value={city.name}>
+                                      {city.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="driver-area">المنطقة</Label>
+                              <Select value={biddingForm.area} onValueChange={(value) => setBiddingForm({...biddingForm, area: value})}>
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder="اختر المنطقة" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {libyanAreas.map((area) => (
+                                    <SelectItem key={area.id} value={area.name}>
+                                      {area.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="driver-email">البريد الإلكتروني</Label>
+                              <Input
+                                id="driver-email"
+                                placeholder="أدخل البريد الإلكتروني"
+                                value={biddingForm.email}
+                                onChange={(e) => setBiddingForm({...biddingForm, email: e.target.value})}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label>خط سير العمل</Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setShowBiddingMapModal(true)}
+                              className="w-full justify-start text-right h-12 border-2 hover:border-blue-400 transition-colors mt-1"
+                            >
+                              <MapPin className="h-4 w-4 mr-2" />
+                              🗺️ تحديد خط السير من الخريطة
+                            </Button>
+                          </div>
+
+                          <div className="flex gap-3 pt-4">
+                            <Button
+                              onClick={handleSaveBidding}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                            >
+                              <Save className="h-4 w-4 mr-2" />
+                              حفظ
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setBiddingModalOpen(false)}
+                              className="transition-all duration-200 hover:bg-gray-50"
+                            >
+                              إلغاء
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bidding Map Modal */}
+                  {showBiddingMapModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+                      <div className="bg-white rounded-2xl p-6 w-full max-w-4xl mx-4 shadow-2xl border max-h-[90vh] overflow-hidden">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold text-gray-900">تحديد خط السير من الخريطة</h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowBiddingMapModal(false)}
+                            className="hover:bg-gray-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="text-sm text-gray-600 mb-4">
+                            انقر على الخريطة لتحديد نقطة البداية والنهاية لخط السير
+                          </div>
+
+                          <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '450px' }}>
+                            <MapContainer
+                              center={[32.8872, 13.1913]}
+                              zoom={7}
+                              style={{ height: '450px', width: '100%' }}
+                            >
+                              <TileLayer
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                              />
+                              <BiddingMapClickHandler onMapClick={(latlng: {lat: number, lng: number}) => {
+                                setBiddingSelectedCoordinates(latlng);
+                              }} />
+                              {biddingSelectedCoordinates && (
+                                <Marker position={[biddingSelectedCoordinates.lat, biddingSelectedCoordinates.lng]}>
+                                  <Popup>
+                                    الموقع المحدد: {biddingSelectedCoordinates.lat.toFixed(4)}, {biddingSelectedCoordinates.lng.toFixed(4)}
+                                  </Popup>
+                                </Marker>
+                              )}
+                              <TileLayer
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                              />
+                              {biddingSelectedCoordinates && (
+                                <Marker position={[biddingSelectedCoordinates.lat, biddingSelectedCoordinates.lng]}>
+                                  <Popup>
+                                    الموقع المحدد: {biddingSelectedCoordinates.lat.toFixed(4)}, {biddingSelectedCoordinates.lng.toFixed(4)}
+                                  </Popup>
+                                </Marker>
+                              )}
+                            </MapContainer>
+                          </div>
+
+                          {biddingSelectedCoordinates && (
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                              <p className="text-sm text-blue-800">
+                                تم تحديد الموقع: خط العرض {biddingSelectedCoordinates.lat.toFixed(4)}, خط الطول {biddingSelectedCoordinates.lng.toFixed(4)}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex gap-3">
+                            <Button
+                              onClick={() => {
+                                if (biddingSelectedCoordinates) {
+                                  setBiddingForm({...biddingForm, route: biddingSelectedCoordinates});
+                                  setShowBiddingMapModal(false);
+                                } else {
+                                  alert('يرجى تحديد موقع على الخريطة أولاً');
+                                }
+                              }}
+                              className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                              disabled={!biddingSelectedCoordinates}
+                            >
+                              <MapPin className="h-4 w-4 mr-2" />
+                              تأكيد خط السير
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setShowBiddingMapModal(false)}
+                              className="transition-all duration-200 hover:bg-gray-50"
+                            >
+                              إلغاء
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bidding Statistics */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-blue-600 mb-1">4</p>
+                          <p className="text-sm text-gray-600">عدد المركبات الآلية المشتركة</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-green-600 mb-1">2</p>
+                          <p className="text-sm text-gray-600">عدد الدراجات النارية المشتركة</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Live Map */}
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                       <MapPin className="h-5 w-5 text-blue-600" />
+                       واجهة الخريطة الجغرافية OpenStreetMap
+                     </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                        <iframe
+                          src="https://www.openstreetmap.org/export/embed.html?bbox=13.0,30.0,25.0,35.0&layer=mapnik"
+                          width="100%"
+                          height="400"
+                          style={{border:0}}
+                          allowFullScreen={true}
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          title="خريطة OpenStreetMap"
+                        ></iframe>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2 text-center">
+                        تتبع حركة المركبات والدرجات النارية في الوقت الفعلي
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Bidding Table */}
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Target className="h-5 w-5 text-green-600" />
+                        المزايدات الحالية
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-right p-3 font-medium">السائق</th>
+                              <th className="text-right p-3 font-medium">نوع المركبة</th>
+                              <th className="text-right p-3 font-medium">عدد المنتجات</th>
+                              <th className="text-right p-3 font-medium">السعر المقترح</th>
+                              <th className="text-right p-3 font-medium">الحالة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[
+                              { name: 'محمد على جابر', type: 'مركبة آلية', products: '5', price: '50 د.ل', status: 'فاز بالمزايدة' },
+                              { name: 'علي عبدالله المقرحي', type: 'مركبة آلية', products: '5', price: '60 د.ل', status: 'خسر المزايدة' },
+                              { name: 'جميل حسن القماطي', type: 'مركبة آلية', products: '5', price: '55 د.ل', status: 'خسر المزايدة' },
+                              { name: 'أحمد فرج السيفاو', type: 'مركبة آلية', products: '5', price: '65 د.ل', status: 'خسر المزايدة' },
+                              { name: 'ساسي حمد الفالح', type: 'دراجة نارية', products: '5', price: '45 د.ل', status: 'فاز بالمزايدة' },
+                              { name: 'عبد الباسط سليمان الغول', type: 'دراجة نارية', products: '5', price: '50 د.ل', status: 'خسر المزايدة' }
+                            ].map((bid, index) => (
+                              <tr key={index} className="border-b hover:bg-gray-50">
+                                <td className="p-3 font-medium">{bid.name}</td>
+                                <td className="p-3">{bid.type}</td>
+                                <td className="p-3">{bid.products}</td>
+                                <td className="p-3 font-bold">{bid.price}</td>
+                                <td className="p-3">
+                                  <Badge className={
+                                    bid.status === 'فاز بالمزايدة' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                  }>
+                                    {bid.status}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {activeSection === 'services-payments' && (
+                <div className="space-y-6">
+                  {/* Enhanced Header */}
+                  <div className="bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 rounded-2xl p-8 text-white shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-bold mb-2">💳 المدفوعات</h2>
+                        <p className="text-green-100 text-lg">إدارة وسائل الدفع المتاحة في متجرك</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                          <CreditCard className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="shadow-lg">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <CreditCard className="h-5 w-5 text-blue-600" />
+                          إدارة المدفوعات
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-gray-600 mb-4">إدارة وسائل الدفع المتاحة</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {[
+                            { name: '1 باي', file: '1Pay.png' },
+                            { name: 'أنيس', file: 'anis.png' },
+                            { name: 'سداد', file: 'sadad.png' },
+                            { name: 'تداول', file: 'tadawul.png' },
+                            { name: 'بطاقات ائتمانية', file: 'debit.png' },
+                            { name: 'معاملات', file: 'moamalat.png' },
+                            { name: 'بكم', file: 'Becom.png' },
+                            { name: 'إدفعلي', file: 'edfali.png' },
+                            { name: 'موبي كاش', file: 'mobicash.png' },
+                            { name: 'بلو لاين', file: 'BlueLine.png' },
+                            { name: 'الدفع لاحقاً من خلال قصتلي', file: 'eshro-new-logo.png' }
+                          ].map((method, index) => (
+                            <div key={index} className="bg-transparent rounded-lg p-4 text-center border hover:shadow-lg transition-shadow">
+                              <img src={`/data/payment/${method.file}`} alt={method.name} className="w-24 h-24 object-contain mx-auto" />
+                              
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Activity className="h-5 w-5 text-green-600" />
+                          العمليات
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-4">
+                            <Select>
+                              <SelectTrigger className="w-48">
+                                <SelectValue placeholder="الكل" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">الكل</SelectItem>
+                                <SelectItem value="success">ناجح</SelectItem>
+                                <SelectItem value="failed">فاشلة</SelectItem>
+                                <SelectItem value="pending">قيد الانتظار</SelectItem>
+                                <SelectItem value="cancelled">ملغية</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <div className="relative flex-1">
+                              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                              <Input placeholder="البحث في العمليات..." className="pr-10" />
+                            </div>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-right p-3 font-medium">رقم العملية</th>
+                                  <th className="text-right p-3 font-medium">نوع العملية</th>
+                                  <th className="text-right p-3 font-medium">الإسم</th>
+                                  <th className="text-right p-3 font-medium">رقم الموبايل</th>
+                                  <th className="text-right p-3 font-medium">رقم الطلب</th>
+                                  <th className="text-right p-3 font-medium">قيمة المعالجة</th>
+                                  <th className="text-right p-3 font-medium">طريقة الدفع</th>
+                                  <th className="text-right p-3 font-medium">التاريخ / الوقت</th>
+                                  <th className="text-right p-3 font-medium">الحالة</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {[
+                                  { id: 'eshro-2777364', type: 'شراء', name: 'عبدالحميد البوسيفي', phone: '0916664733', order: 'eshro-vvr-0018827', amount: '1200 د.ل', method: 'معاملات', date: '20/08/2025', time: '12:30:20 مساءا', status: 'ناجحة' },
+                                  { id: 'eshro-98788981', type: 'شراء', name: 'محمد علي السيفاو', phone: '0926667666', order: 'eshro-vvr-093777', amount: '3120 د.ل', method: 'سداد', date: '22/08/2025', time: '18:30:20 مساءا', status: 'قيد الانتظار' },
+                                  { id: 'eshro-7776612', type: 'شراء', name: 'نجلاء علي البركي', phone: '0929998201', order: 'eshro-vvr-4988983', amount: '870 د.ل', method: 'تداول', date: '20/08/2025', time: '10:30:20 صباحا', status: 'فاشلة' }
+                                ].map((operation, index) => (
+                                  <tr key={index} className="border-b hover:bg-gray-50">
+                                    <td className="p-3 font-medium">{operation.id}</td>
+                                    <td className="p-3">{operation.type}</td>
+                                    <td className="p-3">{operation.name}</td>
+                                    <td className="p-3">{operation.phone}</td>
+                                    <td className="p-3">{operation.order}</td>
+                                    <td className="p-3 font-bold">{operation.amount}</td>
+                                    <td className="p-3">{operation.method}</td>
+                                    <td className="p-3">{operation.date} {operation.time}</td>
+                                    <td className="p-3">
+                                      <Badge className={
+                                        operation.status === 'ناجحة' ? 'bg-green-100 text-green-800' :
+                                        operation.status === 'قيد الانتظار' ? 'bg-yellow-100 text-yellow-800' :
+                                        'bg-red-100 text-red-800'
+                                      }>
+                                        {operation.status}
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm">عرض الكل</Button>
+                              <Button variant="outline" size="sm">تصدير CSV</Button>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm">5</Button>
+                              <Button variant="outline" size="sm">10</Button>
+                              <Button variant="outline" size="sm">15</Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'services-operations' && (
+                <div className="space-y-6">
+                  {/* Enhanced Header */}
+                  <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-2xl p-8 text-white shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-bold mb-2">🔄 العمليات</h2>
+                        <p className="text-indigo-100 text-lg">مراقبة العمليات والمعاملات</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                          <Activity className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-blue-600" />
+                        العمليات في متجرك
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                          <Select>
+                            <SelectTrigger className="w-48">
+                              <SelectValue placeholder="الكل" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">الكل</SelectItem>
+                              <SelectItem value="success">ناجح</SelectItem>
+                              <SelectItem value="failed">فاشلة</SelectItem>
+                              <SelectItem value="pending">قيد الانتظار</SelectItem>
+                              <SelectItem value="cancelled">ملغية</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="relative flex-1">
+                            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input placeholder="البحث في العمليات..." className="pr-10" />
+                          </div>
+                          <Button variant="outline" size="sm">
+                            <ArrowLeftRight className="h-4 w-4 mr-2" />
+                            فرز
+                          </Button>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-right p-3 font-medium">رقم العملية</th>
+                                <th className="text-right p-3 font-medium">نوع العملية</th>
+                                <th className="text-right p-3 font-medium">الإسم</th>
+                                <th className="text-right p-3 font-medium">رقم الموبايل</th>
+                                <th className="text-right p-3 font-medium">رقم الطلب</th>
+                                <th className="text-right p-3 font-medium">قيمة المعالجة</th>
+                                <th className="text-right p-3 font-medium">طريقة الدفع</th>
+                                <th className="text-right p-3 font-medium">التاريخ / الوقت</th>
+                                <th className="text-right p-3 font-medium">الحالة</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[
+                                { id: 'eshro-7776612', type: 'شراء', name: 'نجلاء علي البركي', phone: '0929998201', order: 'eshro-vvr-4988983', amount: '870 د.ل', method: 'تداول', date: '20/08/2025', time: '10:30:20 صباحا', status: 'فاشلة' }
+                              ].map((operation, index) => (
+                                <tr key={index} className="border-b hover:bg-gray-50">
+                                  <td className="p-3 font-medium">{operation.id}</td>
+                                  <td className="p-3">{operation.type}</td>
+                                  <td className="p-3">{operation.name}</td>
+                                  <td className="p-3">{operation.phone}</td>
+                                  <td className="p-3">{operation.order}</td>
+                                  <td className="p-3 font-bold">{operation.amount}</td>
+                                  <td className="p-3">{operation.method}</td>
+                                  <td className="p-3">{operation.date} {operation.time}</td>
+                                  <td className="p-3">
+                                    <Badge className={
+                                      operation.status === 'ناجحة' ? 'bg-green-100 text-green-800' :
+                                      operation.status === 'قيد الانتظار' ? 'bg-yellow-100 text-yellow-800' :
+                                      'bg-red-100 text-red-800'
+                                    }>
+                                      {operation.status}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm">عرض الكل</Button>
+                            <Button variant="outline" size="sm">تصدير CSV</Button>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm">5</Button>
+                            <Button variant="outline" size="sm">10</Button>
+                            <Button variant="outline" size="sm">15</Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {activeSection === 'services-deposits' && (
+                <div className="space-y-6">
+                  {/* Enhanced Header */}
+                  <div className="bg-gradient-to-r from-teal-600 via-green-600 to-blue-600 rounded-2xl p-8 text-white shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-bold mb-2">💰 الإيداعات</h2>
+                        <p className="text-teal-100 text-lg">إدارة الإيداعات والرصيد</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                          <DollarSign className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-blue-600 mb-1">23000 د.ل</p>
+                          <p className="text-sm text-gray-600">الرصيد الحالي</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-green-600 mb-1">12800 د.ل</p>
+                          <p className="text-sm text-gray-600">المستحقات قيد الإيداع</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-purple-600 mb-1">7800 د.ل</p>
+                          <p className="text-sm text-gray-600">آخر إيداع</p>
+                          <p className="text-xs text-gray-500">12/08/2025 10:15:20 صباحا</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5 text-green-600" />
+                        ملخص عملياتك
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                          <div className="relative flex-1">
+                            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input placeholder="البحث في الإيداعات..." className="pr-10" />
+                          </div>
+                          <Button variant="outline" size="sm">
+                            <ArrowLeftRight className="h-4 w-4 mr-2" />
+                            فرز
+                          </Button>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-right p-3 font-medium">رقم العملية</th>
+                                <th className="text-right p-3 font-medium">صافي المبلغ</th>
+                                <th className="text-right p-3 font-medium">رسوم الدفع</th>
+                                <th className="text-right p-3 font-medium">المبلغ</th>
+                                <th className="text-right p-3 font-medium">الإيداع المصرفي</th>
+                                <th className="text-right p-3 font-medium">التاريخ / الوقت</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[
+                                { id: 'eshro-98788981', net: '9750 د.ل', fee: '5 د.ل', amount: '9755 د.ل', bank: 'شمال أفريقيا', date: '14/08/2025', time: '10:30:29 صباحا' },
+                                { id: 'eshro-7776612', net: '1300 د.ل', fee: '0 د.ل', amount: '1300 د.ل', bank: 'الخليج الأول', date: '08/08/2025', time: '14:30:29 ظهرا' }
+                              ].map((deposit, index) => (
+                                <tr key={index} className="border-b hover:bg-gray-50">
+                                  <td className="p-3 font-medium">{deposit.id}</td>
+                                  <td className="p-3 font-bold">{deposit.net}</td>
+                                  <td className="p-3">{deposit.fee}</td>
+                                  <td className="p-3 font-bold">{deposit.amount}</td>
+                                  <td className="p-3">{deposit.bank}</td>
+                                  <td className="p-3">{deposit.date} {deposit.time}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <Button variant="outline" size="sm">عرض التفاصيل</Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {activeSection === 'services-bank-accounts' && (
+                <div className="space-y-6">
+                  {/* Enhanced Header */}
+                  <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 rounded-2xl p-8 text-white shadow-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-bold mb-2">🏦 الحسابات المصرفية</h2>
+                        <p className="text-purple-100 text-lg">إدارة الحسابات المصرفية وإضافة حسابات جديدة</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                          <Building className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div></div>
+                    <Button
+                      className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white"
+                      onClick={() => setBankModalOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      إضافة حساب جديد
+                    </Button>
+                  </div>
+
+                  {/* Bank Modal */}
+                  {bankModalOpen && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+                      <div className="bg-white rounded-2xl p-6 w-full max-w-2xl mx-4 shadow-2xl border">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold text-gray-900">إضافة حساب مصرفي جديد</h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBankModalOpen(false)}
+                            className="hover:bg-gray-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <Label htmlFor="bank-name">اسم المصرف</Label>
+                              <Input
+                                id="bank-name"
+                                placeholder="أدخل اسم المصرف"
+                                value={bankForm.name}
+                                onChange={(e) => setBankForm({...bankForm, name: e.target.value})}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="account-holder">اسم صاحب الحساب</Label>
+                              <Input
+                                id="account-holder"
+                                placeholder="أدخل اسم صاحب الحساب"
+                                value={bankForm.holder}
+                                onChange={(e) => setBankForm({...bankForm, holder: e.target.value})}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="account-number">رقم الحساب</Label>
+                              <Input
+                                id="account-number"
+                                placeholder="أدخل رقم الحساب"
+                                value={bankForm.number}
+                                onChange={(e) => setBankForm({...bankForm, number: e.target.value})}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="currency">العملة</Label>
+                              <Select value={bankForm.currency} onValueChange={(value) => setBankForm({...bankForm, currency: value})}>
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder="اختر العملة" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="LYD">دينار ليبي (د.ل)</SelectItem>
+                                  <SelectItem value="USD">دولار أمريكي</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="iban">رقم الآيبان (IBAN)</Label>
+                              <Input
+                                id="iban"
+                                placeholder="SA4380000296608010756115"
+                                value={bankForm.iban}
+                                onChange={(e) => setBankForm({...bankForm, iban: e.target.value})}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="swift">رمز التحويل المصرفي (Swift)</Label>
+                              <Input
+                                id="swift"
+                                placeholder="RJHISARI"
+                                value={bankForm.swift}
+                                onChange={(e) => setBankForm({...bankForm, swift: e.target.value})}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3 pt-4">
+                            <Button
+                              onClick={handleSaveBank}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                            >
+                              <Save className="h-4 w-4 mr-2" />
+                              حفظ
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setBankModalOpen(false)}
+                              className="transition-all duration-200 hover:bg-gray-50"
+                            >
+                              إلغاء
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building className="h-5 w-5 text-blue-600" />
+                        كل المصارف
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-600 mb-4">يتم عرض هذه الحسابات المصرفية لعملائك كطريقة للدفع في متجرك.</p>
+
+                      <div className="space-y-4">
+                        {[
+                          { name: 'مصرف الجمهورية', holder: 'شركة النجم الساطع للملابس النسائية الراقية', number: '000296608010756115', iban: 'SA4380000296608010756115', swift: 'RJHISARI' },
+                          { name: 'مصرف شمال أفريقيا', holder: 'شركة دانيا للمواد للعطور والزينة', number: '092287897788771110', iban: 'SA4380000868666862226', swift: 'WWWJ199J' }
+                        ].map((account, index) => (
+                          <div key={index} className="bg-white rounded-lg p-4 border hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-20 h-20 flex items-center justify-center">
+                                  <img src={`/data/banks/${account.name === 'مصرف الجمهورية' ? 'jumhouria.png' : 'north-africa.png'}`} alt={account.name} className="w-20 h-20 object-contain" />
+                                </div>
+                                <div>
+                                  <h3 className="font-bold text-gray-900">{account.name}</h3>
+                                  <p className="text-sm text-gray-600">{account.holder}</p>
+                                </div>
+                              </div>
+                              <Button size="sm" variant="outline">تعديل</Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-gray-600">رقم الحساب:</p>
+                                <p className="font-medium">{account.number}</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">رقم الآيبان:</p>
+                                <p className="font-medium">{account.iban}</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">رمز التحويل:</p>
+                                <p className="font-medium">{account.swift}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {activeSection === 'pos-overview' && (
+                <div className="flex">
+                  {/* POS Sidebar */}
+                  <div className="w-64 bg-white shadow-lg p-4 space-y-2">
+                    <h3 className="font-bold text-gray-800 mb-4">نقاط البيع</h3>
+                    <button
+                      onClick={() => setActivePOSView('نقاط البيع')}
+                      className={`w-full text-right p-2 rounded-lg ${activePOSView === 'نقاط البيع' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      نقاط البيع
+                    </button>
+                    <button
+                      onClick={() => setActivePOSView('التقارير')}
+                      className={`w-full text-right p-2 rounded-lg ${activePOSView === 'التقارير' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      التقارير
+                    </button>
+                    <button
+                      onClick={() => setActivePOSView('تطبيق قصتلي')}
+                      className={`w-full text-right p-2 rounded-lg ${activePOSView === 'تطبيق قصتلي' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      تطبيق قصتلي
+                    </button>
+                    <button
+                      onClick={() => setActivePOSView('المبيعات')}
+                      className={`w-full text-right p-2 rounded-lg ${activePOSView === 'المبيعات' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      المبيعات
+                    </button>
+                    <button
+                      onClick={() => setActivePOSView('الإعدادات')}
+                      className={`w-full text-right p-2 rounded-lg ${activePOSView === 'الإعدادات' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      الإعدادات
+                    </button>
+                  </div>
+
+                  {/* POS Main Content */}
+                  <div className="flex-1 space-y-6 p-6">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-2xl font-bold text-gray-900">نقاط البيع</h2>
+                      <div className="flex gap-2">
+                        <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
+                          <Plus className="h-4 w-4 mr-2" />
+                          إضافة نقطة بيع جديدة
+                        </Button>
+                      </div>
+                    </div>
+
+                    {activePOSView === 'التقارير' && (
+                      <div className="flex">
+                        {/* Reports Sidebar */}
+                        <div className="w-64 bg-white shadow-lg p-4 space-y-2">
+                          <h3 className="font-bold text-gray-800 mb-4">التقارير</h3>
+                          <button
+                            onClick={() => setActiveReportsView('تقرير المبيعات')}
+                            className={`w-full text-right p-2 rounded-lg ${activeReportsView === 'تقرير المبيعات' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                          >
+                            تقرير المبيعات
+                          </button>
+                          <button
+                            onClick={() => setActiveReportsView('تقارير أخرى')}
+                            className={`w-full text-right p-2 rounded-lg ${activeReportsView === 'تقارير أخرى' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                          >
+                            تقارير أخرى
+                          </button>
+                        </div>
+
+                        {/* Reports Main Content */}
+                        <div className="flex-1 space-y-6 p-6">
+                          <div className="flex items-center justify-between">
+                            <h2 className="text-2xl font-bold text-gray-900">التقارير</h2>
+                            <div className="flex gap-2">
+                              <div className="relative">
+                                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                  placeholder="ابحث في التقارير..."
+                                  className="pr-10 w-64"
+                                  value={reportsSearch}
+                                  onChange={(e) => setReportsSearch(e.target.value)}
+                                />
+                              </div>
+                              <Select value={reportsSort} onValueChange={setReportsSort}>
+                                <SelectTrigger className="w-48">
+                                  <SelectValue placeholder="فرز" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="date">التاريخ</SelectItem>
+                                  <SelectItem value="sales">المبيعات</SelectItem>
+                                  <SelectItem value="profit">الربح</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          {activeReportsView === 'تقرير المبيعات' && (
+                            <div className="space-y-6">
+                              {/* Metrics Cards */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <Card className="shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+                                  <CardContent className="p-6 text-center">
+                                    <div className="text-3xl font-bold text-blue-600 mb-1">3</div>
+                                    <p className="text-sm text-gray-600">عدد المحافظ المصدرة</p>
+                                  </CardContent>
+                                </Card>
+                                <Card className="shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+                                  <CardContent className="p-6 text-center">
+                                    <div className="text-3xl font-bold text-green-600 mb-1">362</div>
+                                    <p className="text-sm text-gray-600">المحافظ النشطة</p>
+                                  </CardContent>
+                                </Card>
+                                <Card className="shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                                  <CardContent className="p-6 text-center">
+                                    <div className="text-3xl font-bold text-purple-600 mb-1">840</div>
+                                    <p className="text-sm text-gray-600">عدد نقاط البيع النشطة</p>
+                                  </CardContent>
+                                </Card>
+                                <Card className="shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
+                                  <CardContent className="p-6 text-center">
+                                    <div className="text-3xl font-bold text-orange-600 mb-1">860</div>
+                                    <p className="text-sm text-gray-600">عدد نقاط البيع المرخصة</p>
+                                  </CardContent>
+                                </Card>
+                                <Card className="shadow-lg bg-gradient-to-br from-red-50 to-red-100">
+                                  <CardContent className="p-6 text-center">
+                                    <div className="text-3xl font-bold text-red-600 mb-1">452</div>
+                                    <p className="text-sm text-gray-600">عدد الزبائن</p>
+                                  </CardContent>
+                                </Card>
+                                <Card className="shadow-lg bg-gradient-to-br from-indigo-50 to-indigo-100">
+                                  <CardContent className="p-6 text-center">
+                                    <div className="text-3xl font-bold text-indigo-600 mb-1">345</div>
+                                    <p className="text-sm text-gray-600">إجمالي الحركات</p>
+                                  </CardContent>
+                                </Card>
+                                <Card className="shadow-lg bg-gradient-to-br from-pink-50 to-pink-100">
+                                  <CardContent className="p-6 text-center">
+                                    <div className="text-3xl font-bold text-pink-600 mb-1">145,250.089 د.ل</div>
+                                    <p className="text-sm text-gray-600">حجم التعاملات</p>
+                                  </CardContent>
+                                </Card>
+                                <Card className="shadow-lg bg-gradient-to-br from-teal-50 to-teal-100">
+                                  <CardContent className="p-6 text-center">
+                                    <div className="text-3xl font-bold text-teal-600 mb-1">145,250.089 د.ل</div>
+                                    <p className="text-sm text-gray-600">إجمالي قيمة التسوية</p>
+                                  </CardContent>
+                                </Card>
+                              </div>
+
+                              {/* Analytics View with Charts */}
+                              <Card className="shadow-lg bg-gradient-to-r from-blue-50 to-purple-50">
+                                <CardHeader>
+                                  <CardTitle className="flex items-center gap-2">
+                                    <BarChart3 className="h-5 w-5 text-blue-600" />
+                                    عرض تحليلي - Analytics View
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Sales Chart */}
+                                    <div className="bg-white rounded-lg p-4">
+                                      <h4 className="font-bold text-gray-800 mb-3">رسم بياني للمبيعات</h4>
+                                      <div className="relative h-48 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4">
+                                        <div className="flex items-end justify-between h-full">
+                                          {Array.from({length: 12}, (_, i) => (
+                                            <div key={i} className="flex flex-col items-center">
+                                              <div
+                                                className="w-6 bg-gradient-to-t from-blue-500 to-purple-500 rounded-t"
+                                                style={{height: `${20 + Math.sin(i/2) * 60}%`}}
+                                              ></div>
+                                              <span className="text-xs text-gray-600 mt-1">{i+1}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Profit Chart */}
+                                    <div className="bg-white rounded-lg p-4">
+                                      <h4 className="font-bold text-gray-800 mb-3">رسم بياني للأرباح</h4>
+                                      <div className="relative h-48 bg-gradient-to-br from-green-50 to-blue-50 rounded-lg p-4">
+                                        <div className="flex items-end justify-between h-full">
+                                          {Array.from({length: 12}, (_, i) => (
+                                            <div key={i} className="flex flex-col items-center">
+                                              <div
+                                                className="w-6 bg-gradient-to-t from-green-500 to-blue-500 rounded-t"
+                                                style={{height: `${30 + Math.cos(i/3) * 50}%`}}
+                                              ></div>
+                                              <span className="text-xs text-gray-600 mt-1">{i+1}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* Data Table */}
+                              <Card className="shadow-lg">
+                                <CardHeader>
+                                  <CardTitle className="flex items-center gap-2">
+                                    <Activity className="h-5 w-5 text-green-600" />
+                                    جدول البيانات
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-right">
+                                      <thead className="bg-gray-50">
+                                        <tr>
+                                          <th className="p-3 text-right font-medium">التاريخ</th>
+                                          <th className="p-3 text-right font-medium">المبيعات</th>
+                                          <th className="p-3 text-right font-medium">صافي الإيرادات</th>
+                                          <th className="p-3 text-right font-medium">تكلفة البضائع المباعة</th>
+                                          <th className="p-3 text-right font-medium">إجمالي الربح</th>
+                                          <th className="p-3 text-right font-medium">إجمالي هامش الربح (%)</th>
+                                          <th className="p-3 text-right font-medium">مبلغ الضريبة</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {[
+                                          { date: '2025-10-24', sales: '12,500 د.ل', netRevenue: '11,250 د.ل', cost: '8,000 د.ل', profit: '3,250 د.ل', margin: '28.9%', tax: '1,250 د.ل' },
+                                          { date: '2025-10-23', sales: '10,800 د.ل', netRevenue: '9,720 د.ل', cost: '7,200 د.ل', profit: '2,520 د.ل', margin: '25.9%', tax: '1,080 د.ل' },
+                                          { date: '2025-10-22', sales: '15,200 د.ل', netRevenue: '13,680 د.ل', cost: '9,500 د.ل', profit: '4,180 د.ل', margin: '30.6%', tax: '1,520 د.ل' },
+                                          { date: '2025-10-21', sales: '9,500 د.ل', netRevenue: '8,550 د.ل', cost: '6,500 د.ل', profit: '2,050 د.ل', margin: '24.0%', tax: '950 د.ل' },
+                                          { date: '2025-10-20', sales: '11,000 د.ل', netRevenue: '9,900 د.ل', cost: '7,000 د.ل', profit: '2,900 د.ل', margin: '29.3%', tax: '1,100 د.ل' }
+                                        ].map((row, index) => (
+                                          <tr key={index} className="border-b hover:bg-gray-50">
+                                            <td className="p-3 font-medium">{row.date}</td>
+                                            <td className="p-3">{row.sales}</td>
+                                            <td className="p-3">{row.netRevenue}</td>
+                                            <td className="p-3">{row.cost}</td>
+                                            <td className="p-3 font-bold text-green-600">{row.profit}</td>
+                                            <td className="p-3">{row.margin}</td>
+                                            <td className="p-3">{row.tax}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
+
+                          {activeReportsView === 'تقارير أخرى' && (
+                            <div className="space-y-6">
+                              <Card className="shadow-lg">
+                                <CardContent className="p-6 text-center">
+                                  <p className="text-gray-600">تقارير أخرى سيتم إضافتها قريباً</p>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {activePOSView === 'نقاط البيع' && (
+                      <div className="space-y-6">
+                        {/* POS KPI Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                          <Card className="shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500">
+                            <CardContent className="p-6 text-center">
+                              <div className="text-3xl font-bold text-blue-600 mb-1">8</div>
+                              <p className="text-sm text-gray-600">إجمالي النقاط</p>
+                              <p className="text-xs text-gray-500">نقطة بيع</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-green-50 to-green-100 border-l-4 border-l-green-500">
+                            <CardContent className="p-6 text-center">
+                              <div className="text-3xl font-bold text-green-600 mb-1">6</div>
+                              <p className="text-sm text-gray-600">النقاط النشطة</p>
+                              <p className="text-xs text-gray-500">من أصل 8</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500">
+                            <CardContent className="p-6 text-center">
+                              <div className="text-3xl font-bold text-purple-600 mb-1">245</div>
+                              <p className="text-sm text-gray-600">معاملات اليوم</p>
+                              <p className="text-xs text-gray-500">معاملة</p>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="shadow-lg bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500">
+                            <CardContent className="p-6 text-center">
+                              <div className="text-3xl font-bold text-orange-600 mb-1">45,670</div>
+                              <p className="text-sm text-gray-600">مبيعات اليوم</p>
+                              <p className="text-xs text-gray-500">د.ل</p>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Payment Methods Section */}
+                        <Card className="shadow-lg bg-gradient-to-r from-blue-50 to-purple-50">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <CreditCard className="h-5 w-5 text-blue-600" />
+                              نقاط البيع
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-sm text-gray-600 mb-4">جميع وسائل الدفع المتاحة في ليبيا لنقاط البيع الخاصة بك</p>
+                            <h3 className="text-lg font-bold text-gray-800 mb-2">المدفوعات</h3>
+                            <h4 className="text-md font-medium text-gray-700 mb-4">طرق الدفع المتاحة</h4>
+
+                            {/* Payment Methods Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+                              {[
+                                { name: '1 باي', file: '1Pay.png' },
+                                { name: 'أنيس', file: 'anis.png' },
+                                { name: 'سداد', file: 'sadad.png' },
+                                { name: 'تداول', file: 'tadawul.png' },
+                                { name: 'بطاقات ائتمانية', file: 'debit.png' },
+                                { name: 'معاملات', file: 'moamalat.png' },
+                                { name: 'بكم', file: 'Becom.png' },
+                                { name: 'إدفعلي', file: 'edfali.png' },
+                                { name: 'موبي كاش', file: 'mobicash.png' },
+                                { name: 'بلو لاين', file: 'BlueLine.png' },
+                                { name: 'الدفع نقداً', file: 'cash.png' }
+                              ].map((method, index) => (
+                                <div key={index} className="bg-white rounded-lg p-4 text-center border hover:shadow-lg transition-shadow cursor-pointer">
+                                  <img src={`/payment/${method.file}`} alt={method.name} className="w-20 h-20 object-contain mx-auto" />
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Statistics Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                              <Card className="shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+                                <CardContent className="p-6 text-center">
+                                  <div className="text-3xl font-bold text-blue-600 mb-1">8</div>
+                                  <p className="text-sm text-gray-600">إجمالي النقاط</p>
+                                  <p className="text-xs text-gray-500">نقطة بيع</p>
+                                </CardContent>
+                              </Card>
+
+                              <Card className="shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+                                <CardContent className="p-6 text-center">
+                                  <div className="text-3xl font-bold text-green-600 mb-1">6</div>
+                                  <p className="text-sm text-gray-600">النقاط النشطة</p>
+                                  <p className="text-xs text-gray-500">من أصل 8</p>
+                                </CardContent>
+                              </Card>
+
+                              <Card className="shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                                <CardContent className="p-6 text-center">
+                                  <div className="text-3xl font-bold text-purple-600 mb-1">245</div>
+                                  <p className="text-sm text-gray-600">معاملات اليوم</p>
+                                  <p className="text-xs text-gray-500">معاملة</p>
+                                </CardContent>
+                              </Card>
+
+                              <Card className="shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
+                                <CardContent className="p-6 text-center">
+                                  <div className="text-3xl font-bold text-orange-600 mb-1">45,670</div>
+                                  <p className="text-sm text-gray-600">مبيعات اليوم</p>
+                                  <p className="text-xs text-gray-500">د.ل</p>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Terminal Points */}
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <MapPin className="h-5 w-5 text-green-600" />
+                              نقاط البيع والمدفوعات
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-4">
+                              {[
+                                {
+                                  id: 'Terminal Point 1',
+                                  location: 'طرابلس - المدينة القديمة',
+                                  address: 'شارع الاستقلال، المدينة القديمة',
+                                  status: 'نشط',
+                                  bank: 'مصرف الجمهورية',
+                                  transactions: 45,
+                                  amount: '67,890',
+                                  phone: '+218 91 123 4567',
+                                  lastTransaction: '14:30:00'
+                                },
+                                {
+                                  id: 'Terminal Point 2',
+                                  location: 'طرابلس - حي الأندلس',
+                                  address: 'شارع عمر المختار، حي الأندلس',
+                                  status: 'نشط',
+                                  bank: 'مصرف شمال أفريقيا',
+                                  transactions: 32,
+                                  amount: '45,620',
+                                  phone: '+218 92 234 5678',
+                                  lastTransaction: '13:45:00'
+                                },
+                                {
+                                  id: 'Terminal Point 3',
+                                  location: 'طرابلس - تاجوراء',
+                                  address: 'الطريق الساحلي، تاجوراء',
+                                  status: 'نشط',
+                                  bank: 'مصرف التجاري الوطني',
+                                  transactions: 28,
+                                  amount: '38,750',
+                                  phone: '+218 94 345 6789',
+                                  lastTransaction: '15:20:00'
+                                },
+                                {
+                                  id: 'Terminal Point 4',
+                                  location: 'بنغازي - وسط المدينة',
+                                  address: 'شارع جمال عبد الناصر، وسط بنغازي',
+                                  status: 'غير نشط',
+                                  bank: 'مصرف الأمان',
+                                  transactions: 0,
+                                  amount: '0',
+                                  phone: '+218 61 456 7890',
+                                  lastTransaction: 'غير متاح'
+                                }
+                              ].map((terminal, index) => (
+                                <div key={index} className="bg-white rounded-lg p-4 border hover:shadow-md transition-shadow">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <CreditCard className="h-6 w-6 text-blue-600" />
+                                      </div>
+                                      <div>
+                                        <h3 className="font-bold text-gray-900">{terminal.id}</h3>
+                                        <p className="text-sm text-gray-600">{terminal.location}</p>
+                                        <p className="text-xs text-gray-500">{terminal.address}</p>
+                                      </div>
+                                    </div>
+                                    <Badge className={terminal.status === 'نشط' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                      {terminal.status}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                                    <div>
+                                      <p className="text-sm text-gray-600">المصرف المرتبط</p>
+                                      <div className="flex justify-center">
+                                        <img
+                                          src={`/assets/banks/${terminal.bank === 'مصرف الجمهورية' ? 'jumhouria.png' :
+                                            terminal.bank === 'مصرف شمال أفريقيا' ? 'north-africa.png' :
+                                            terminal.bank === 'مصرف التجاري الوطني' ? 'national-commercial-bank.png' :
+                                            terminal.bank === 'مصرف الأمان' ? 'aman-bank.png' : 'commerce-bank.png'}`}
+                                          alt={terminal.bank}
+                                          className="w-16 h-16 object-contain"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-600">رقم الهاتف</p>
+                                      <p className="font-medium">{terminal.phone}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                                    <div className="text-center p-2 bg-blue-50 rounded-lg">
+                                      <p className="text-lg font-bold text-blue-600">{terminal.transactions}</p>
+                                      <p className="text-xs text-gray-600">معاملات اليوم</p>
+                                    </div>
+                                    <div className="text-center p-2 bg-green-50 rounded-lg">
+                                      <p className="text-lg font-bold text-green-600">{terminal.amount}</p>
+                                      <p className="text-xs text-gray-600">مبلغ اليوم</p>
+                                    </div>
+                                    <div className="text-center p-2 bg-purple-50 rounded-lg">
+                                      <p className="text-sm font-bold text-purple-600">{terminal.lastTransaction}</p>
+                                      <p className="text-xs text-gray-600">آخر معاملة</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-2">
+                                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                                      عرض التفاصيل
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white"
+                                      onClick={() => setShowDailyReport(true)}
+                                    >
+                                      تقرير يومي
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Daily Report Modal */}
+                        {showDailyReport && (
+                          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+                            <div className="bg-white rounded-2xl p-6 w-full max-w-6xl mx-4 shadow-2xl border max-h-[90vh] overflow-y-auto">
+                              <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-2xl font-bold text-gray-900">تقرير الحركات اليومي - {new Date().toLocaleDateString('ar-SA')}</h3>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setShowDailyReport(false)}
+                                  className="hover:bg-gray-100"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+
+                              {/* Report Header */}
+                              <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 text-white mb-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="text-center">
+                                    <p className="text-3xl font-bold">345</p>
+                                    <p className="text-blue-100">إجمالي الحركات</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-3xl font-bold">145,250.089 د.ل</p>
+                                    <p className="text-blue-100">حجم التعاملات</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-3xl font-bold">98.2%</p>
+                                    <p className="text-blue-100">معدل النجاح</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Charts Section */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                {/* Transaction Volume Chart */}
+                                <Card className="shadow-lg">
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <BarChart3 className="h-5 w-5 text-blue-600" />
+                                      حجم الحركات بالساعة
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="relative h-64 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4">
+                                      <div className="flex items-end justify-between h-full">
+                                        {Array.from({length: 24}, (_, i) => {
+                                          const hour = i.toString().padStart(2, '0') + ':00';
+                                          return (
+                                            <div key={i} className="flex flex-col items-center">
+                                              <div
+                                                className="w-6 bg-gradient-to-t from-blue-500 to-purple-500 rounded-t"
+                                                style={{height: `${10 + Math.sin(i/3) * 40}%`}}
+                                              ></div>
+                                              <span className="text-xs text-gray-600 mt-1">{hour}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+
+                                {/* Payment Methods Distribution */}
+                                <Card className="shadow-lg">
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                      <PieChart className="h-5 w-5 text-green-600" />
+                                      توزيع طرق الدفع
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="flex items-center justify-center">
+                                      <div className="relative w-48 h-48">
+                                        <div className="w-48 h-48 rounded-full" style={{
+                                          background: 'conic-gradient(#3B82F6 0% 35%, #10B981 35% 60%, #F59E0B 60% 85%, #EF4444 85% 100%)'
+                                        }} />
+                                        <div className="absolute inset-0 m-6 rounded-full bg-white" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                          <span className="text-lg font-bold">100%</span>
+                                        </div>
+                                      </div>
+                                      <div className="ml-6 space-y-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                          <span className="text-sm">بطاقات ائتمانية (35%)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                          <span className="text-sm">محافظ إلكترونية (25%)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                          <span className="text-sm">تحويل بنكي (25%)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                          <span className="text-sm">دفع عند التسليم (15%)</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+
+                              {/* Monthly Transactions Table */}
+                              <Card className="shadow-lg">
+                                <CardHeader>
+                                  <CardTitle className="flex items-center gap-2">
+                                    <Activity className="h-5 w-5 text-purple-600" />
+                                    جدول تقرير الحركات الشهرية
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-right">
+                                      <thead className="bg-gray-50">
+                                        <tr>
+                                          <th className="p-3 text-right font-medium">التاريخ</th>
+                                          <th className="p-3 text-right font-medium">عدد الحركات</th>
+                                          <th className="p-3 text-right font-medium">حجم التعاملات</th>
+                                          <th className="p-3 text-right font-medium">العمولة</th>
+                                          <th className="p-3 text-right font-medium">صافي المبلغ</th>
+                                          <th className="p-3 text-right font-medium">الحالة</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {[
+                                          { date: '2025-10-24', transactions: 45, volume: '18,500.00', commission: '185.00', net: '18,315.00', status: 'مكتمل' },
+                                          { date: '2025-10-23', transactions: 38, volume: '15,200.00', commission: '152.00', net: '15,048.00', status: 'مكتمل' },
+                                          { date: '2025-10-22', transactions: 42, volume: '16,800.00', commission: '168.00', net: '16,632.00', status: 'مكتمل' },
+                                          { date: '2025-10-21', transactions: 35, volume: '14,750.00', commission: '147.50', net: '14,602.50', status: 'مكتمل' },
+                                          { date: '2025-10-20', transactions: 40, volume: '17,200.00', commission: '172.00', net: '17,028.00', status: 'مكتمل' }
+                                        ].map((day, index) => (
+                                          <tr key={index} className="border-b hover:bg-gray-50">
+                                            <td className="p-3 font-medium">{day.date}</td>
+                                            <td className="p-3">{day.transactions}</td>
+                                            <td className="p-3 font-bold">{day.volume} د.ل</td>
+                                            <td className="p-3 text-red-600">{day.commission} د.ل</td>
+                                            <td className="p-3 font-bold text-green-600">{day.net} د.ل</td>
+                                            <td className="p-3">
+                                              <Badge className="bg-green-100 text-green-800">{day.status}</Badge>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* Report Actions */}
+                              <div className="flex justify-end gap-3 mt-6">
+                                <Button variant="outline" onClick={() => setShowDailyReport(false)}>
+                                  إغلاق
+                                </Button>
+                                <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
+                                  <Download className="h-4 w-4 mr-2" />
+                                  تصدير التقرير
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recent Transactions */}
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Activity className="h-5 w-5 text-green-600" />
+                              المعاملات الأخيرة
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm text-right">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="p-3 text-right">رقم المعاملة</th>
+                                    <th className="p-3 text-right">نقطة البيع</th>
+                                    <th className="p-3 text-right">العميل</th>
+                                    <th className="p-3 text-right">المبلغ</th>
+                                    <th className="p-3 text-right">طريقة الدفع</th>
+                                    <th className="p-3 text-right">الوقت</th>
+                                    <th className="p-3 text-right">الحالة</th>
+                                    <th className="p-3 text-right">الإجراءات</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {[
+                                    { id: 'POS-001', terminal: 'Terminal Point 1', customer: 'أحمد محمد الشريف', amount: '450 د.ل', method: 'بطاقة ائتمانية', time: '14:30:22', status: 'ناجحة' },
+                                    { id: 'POS-002', terminal: 'Terminal Point 2', customer: 'فاطمة علي السنوسي', amount: '780 د.ل', method: 'بطاقة خصم', time: '13:45:15', status: 'ناجحة' },
+                                    { id: 'POS-003', terminal: 'Terminal Point 1', customer: 'عمر خالد القذافي', amount: '1,200 د.ل', method: 'بطاقة ائتمانية', time: '12:20:30', status: 'فاشلة' },
+                                    { id: 'POS-004', terminal: 'Terminal Point 3', customer: 'مريم عبدالله الزنتاني', amount: '320 د.ل', method: 'بطاقة خصم', time: '11:15:45', status: 'ناجحة' }
+                                  ].map((transaction, index) => (
+                                    <tr key={index} className="border-b hover:bg-gray-50">
+                                      <td className="p-3 font-medium">{transaction.id}</td>
+                                      <td className="p-3">{transaction.terminal}</td>
+                                      <td className="p-3">{transaction.customer}</td>
+                                      <td className="p-3 font-bold">{transaction.amount}</td>
+                                      <td className="p-3">{transaction.method}</td>
+                                      <td className="p-3">{transaction.time}</td>
+                                      <td className="p-3">
+                                        <Badge className={transaction.status === 'ناجحة' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                          {transaction.status}
+                                        </Badge>
+                                      </td>
+                                      <td className="p-3">
+                                        <Button size="sm" variant="outline">تفاصيل</Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+
+                    {activePOSView === 'تطبيق قصتلي' && (
+                      <div className="space-y-6">
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Smartphone className="h-5 w-5 text-blue-600" />
+                              تطبيق قصتلي - إدارة تطبيقات قصتلي المفعلة
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="mb-6">
+                              <h3 className="text-lg font-bold text-gray-800 mb-4">إدارة التطبيقات</h3>
+
+                              <div className="flex items-center gap-4 mb-6">
+                                <div className="relative flex-1">
+                                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <Input placeholder="ابحث في التطبيقات..." className="pr-10" />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Qasatli App Card */}
+                            <div className="bg-white rounded-lg border p-6">
+                              <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                    <Smartphone className="h-6 w-6 text-green-600" />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-bold text-gray-900">Eshro-127604</h3>
+                                    <p className="text-sm text-gray-600">تطبيق قصتلي مفعل</p>
+                                  </div>
+                                </div>
+                                <Badge className="bg-green-100 text-green-800">مفعل</Badge>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                  <p className="text-sm text-gray-600">الاسم</p>
+                                  <p className="font-medium">Eshro-127604</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm text-gray-600">الاسم المرجعي</p>
+                                  <p className="font-medium">Eshro-127604</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm text-gray-600">تاريخ الانتهاء</p>
+                                  <p className="font-medium">2025-07-10</p>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <Button className="bg-green-600 hover:bg-green-700">تجديد</Button>
+                                <Button variant="outline">تعديل</Button>
+                              </div>
+                            </div>
+
+                            {/* App Configuration */}
+                            <div className="mt-6 bg-gray-50 rounded-lg p-6">
+                              <h4 className="font-bold text-gray-800 mb-4">بيانات تطبيق قصتلي</h4>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                  <Label>اسم التطبيق</Label>
+                                  <Input value="eshro-127604" readOnly className="bg-white" />
+                                </div>
+                                <div>
+                                  <Label>المعرف المرجعي</Label>
+                                  <Input value="eshro-127604" readOnly className="bg-white" />
+                                </div>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <Button variant="outline">إلغاء</Button>
+                                <Button className="bg-blue-600 hover:bg-blue-700">حفظ</Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {activePOSView === 'المبيعات' && (
+                      <div className="space-y-6">
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <ShoppingBag className="h-5 w-5 text-green-600" />
+                              المبيعات - إدارة ومتابعة المبيعات من تطبيق قصتلي
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="mb-6">
+                              <h3 className="text-lg font-bold text-gray-800 mb-4">قائمة المبيعات</h3>
+
+                              <div className="flex items-center gap-4 mb-6">
+                                <div className="relative flex-1">
+                                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <Input placeholder="ابحث في المبيعات..." className="pr-10" />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="bg-white rounded-lg border">
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b">
+                                      <th className="text-right p-3 font-medium">رقم الفاتورة / رقم الطلب</th>
+                                      <th className="text-right p-3 font-medium">مستخدم قصتلي</th>
+                                      <th className="text-right p-3 font-medium">العميل</th>
+                                      <th className="text-right p-3 font-medium">المبلغ</th>
+                                      <th className="text-right p-3 font-medium">حالة الدفع</th>
+                                      <th className="text-right p-3 font-medium">حالة الطلب</th>
+                                      <th className="text-right p-3 font-medium">التاريخ</th>
+                                      <th className="text-right p-3 font-medium">الوقت</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr>
+                                      <td colSpan={8} className="p-6 text-center text-gray-500">
+                                        لا توجد بيانات حالياً
+                                        <br />
+                                        ستظهر هنا عند توفرها
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {activePOSView === 'الإعدادات' && (
+                      <div className="space-y-6">
+                        <Card className="shadow-lg">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Settings className="h-5 w-5 text-purple-600" />
+                              إعدادات نقاط البيع - إدارة وتخصيص إعدادات نقاط البيع وقصتلي
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-6">
+                              {/* General Settings */}
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800 mb-4">عام</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <Label>اسم المتجر</Label>
+                                    <Input placeholder="أدخل اسم المتجر" />
+                                  </div>
+                                  <div>
+                                    <Label>رقم الهاتف</Label>
+                                    <Input placeholder="أدخل رقم الهاتف" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Payment Methods */}
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800 mb-4">طرق الدفع</h3>
+
+                                <div className="space-y-4">
+                                  <div className="bg-white rounded-lg p-4 border">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                          <CreditCard className="h-5 w-5 text-blue-600" />
+                                        </div>
+                                        <div>
+                                          <h4 className="font-bold text-gray-900">بطاقة ائتمانية</h4>
+                                          <p className="text-sm text-gray-600">قبول المدفوعات بالبطاقات الائتمانية</p>
+                                        </div>
+                                      </div>
+                                      <Button variant="outline" size="sm">تعديل</Button>
+                                    </div>
+                                  </div>
+
+                                  <div className="bg-white rounded-lg p-4 border">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                          <Smartphone className="h-5 w-5 text-green-600" />
+                                        </div>
+                                        <div>
+                                          <h4 className="font-bold text-gray-900">قصتلي</h4>
+                                          <p className="text-sm text-gray-600">تطبيق قصتلي للمدفوعات</p>
+                                        </div>
+                                      </div>
+                                      <Button variant="outline" size="sm">تعديل</Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Invoice Templates */}
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800 mb-4">قوالب الفواتير</h3>
+                                <p className="text-sm text-gray-600 mb-4">خصص فاتورتك عن طريق تعديل القوالب والحقول لتناسب احتياجاتك</p>
+
+                                <div className="flex items-center gap-4 mb-6">
+                                  <div className="relative flex-1">
+                                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <Input placeholder="ابحث في القوالب..." className="pr-10" />
+                                  </div>
+                                  <Button className="bg-green-600 hover:bg-green-700">إنشاء قالب</Button>
+                                </div>
+
+                                <div className="bg-white rounded-lg border">
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                      <thead>
+                                        <tr className="border-b">
+                                          <th className="text-right p-3 font-medium">اسم القالب</th>
+                                          <th className="text-right p-3 font-medium">الفروع / المخازن المرتبطة</th>
+                                          <th className="text-right p-3 font-medium">تاريخ الإنشاء / التحديث</th>
+                                          <th className="text-right p-3 font-medium">تفعيل</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        <tr>
+                                          <td colSpan={4} className="p-6 text-center text-gray-500">
+                                            لا توجد بيانات حالياً
+                                            <br />
+                                            ستظهر هنا عند توفرها
+                                          </td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {activeSection === 'services' && (
                 <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-900">الخدمات</h2>
-                  <Card className="shadow-lg">
-                    <CardContent className="p-6">
-                      <p className="text-sm text-gray-600 mb-4">إدارة الخدمات المقدمة</p>
-                      <div className="text-center p-8 bg-gray-50 rounded-lg">
-                        <Truck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                        <p className="text-gray-600">محتوى إدارة الخدمات سيتم إضافته قريباً</p>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-gray-900">إدارة الخدمات</h2>
+                    <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
+                      <Plus className="h-4 w-4 mr-2" />
+                      إضافة خدمة جديدة
+                    </Button>
+                  </div>
+
+                  {/* Services Overview */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <Card className="shadow-lg hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleSectionChange('services-logistics')}>
+                      <CardContent className="p-6 text-center">
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Truck className="h-8 w-8 text-blue-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">اللوجستيات</h3>
+                        <p className="text-sm text-gray-600 mb-4">إدارة شركات الشحن والتوصيل</p>
+                        <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                          <span>12 شركة نشطة</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleSectionChange('services-shipping-tracking')}>
+                      <CardContent className="p-6 text-center">
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Package className="h-8 w-8 text-green-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">تتبع الشحنات</h3>
+                        <p className="text-sm text-gray-600 mb-4">تتبع الطلبات والشحنات في الوقت الفعلي</p>
+                        <div className="flex items-center justify-center gap-2 text-sm text-green-600">
+                          <span>45 شحنة اليوم</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleSectionChange('services-shipping-policies')}>
+                      <CardContent className="p-6 text-center">
+                        <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <DollarSign className="h-8 w-8 text-purple-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">تسعير الشحن</h3>
+                        <p className="text-sm text-gray-600 mb-4">إدارة أسعار بوليصات الشحن بالجملة</p>
+                        <div className="flex items-center justify-center gap-2 text-sm text-purple-600">
+                          <span>5 خطط نشطة</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleSectionChange('services-bidding-routes')}>
+                      <CardContent className="p-6 text-center">
+                        <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Target className="h-8 w-8 text-orange-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">المزايدة على المشوار</h3>
+                        <p className="text-sm text-gray-600 mb-4">إدارة السائقين والمركبات</p>
+                        <div className="flex items-center justify-center gap-2 text-sm text-orange-600">
+                          <span>6 سائقين نشطين</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleSectionChange('services-payments')}>
+                      <CardContent className="p-6 text-center">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <CreditCard className="h-8 w-8 text-red-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">المدفوعات</h3>
+                        <p className="text-sm text-gray-600 mb-4">إدارة وسائل الدفع المتاحة</p>
+                        <div className="flex items-center justify-center gap-2 text-sm text-red-600">
+                          <span>11 طريقة دفع</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleSectionChange('services-operations')}>
+                      <CardContent className="p-6 text-center">
+                        <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Activity className="h-8 w-8 text-indigo-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">العمليات</h3>
+                        <p className="text-sm text-gray-600 mb-4">مراقبة العمليات والمعاملات</p>
+                        <div className="flex items-center justify-center gap-2 text-sm text-indigo-600">
+                          <span>234 عملية اليوم</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Services Statistics */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-blue-600 mb-1">12</p>
+                          <p className="text-sm text-gray-600">إجمالي الخدمات النشطة</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-green-600 mb-1">98%</p>
+                          <p className="text-sm text-gray-600">معدل رضا العملاء</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-purple-600 mb-1">1,247</p>
+                          <p className="text-sm text-gray-600">إجمالي المعاملات</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-orange-600 mb-1">45,670 د.ل</p>
+                          <p className="text-sm text-gray-600">إجمالي الإيرادات</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <Card className="shadow-lg bg-gradient-to-r from-blue-50 to-purple-50">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Zap className="h-5 w-5 text-blue-600" />
+                        إجراءات سريعة
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white h-16 flex flex-col items-center justify-center">
+                          <Truck className="h-6 w-6 mb-2" />
+                          <span className="text-sm">إضافة شركة شحن</span>
+                        </Button>
+                        <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white h-16 flex flex-col items-center justify-center">
+                          <Target className="h-6 w-6 mb-2" />
+                          <span className="text-sm">إضافة سائق</span>
+                        </Button>
+                        <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-16 flex flex-col items-center justify-center">
+                          <CreditCard className="h-6 w-6 mb-2" />
+                          <span className="text-sm">إضافة طريقة دفع</span>
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -8629,12 +13107,14 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
               )}
 
               {/* Default content for other sections */}
-              {activeSection !== 'overview' && !activeSection.startsWith('orders') && !activeSection.startsWith('catalog') && !activeSection.startsWith('customers') && !activeSection.startsWith('marketing') && !activeSection.startsWith('analytics') && !activeSection.startsWith('finance') && !activeSection.startsWith('settings') && activeSection !== 'pos' && activeSection !== 'services' && activeSection !== 'customer-service' && activeSection !== 'technical-support' && (
+              {activeSection !== 'overview' && !activeSection.startsWith('orders') && !activeSection.startsWith('catalog') && !activeSection.startsWith('customers') && !activeSection.startsWith('marketing') && !activeSection.startsWith('analytics') && !activeSection.startsWith('finance') && !activeSection.startsWith('settings') && !activeSection.startsWith('services') && activeSection !== 'customer-service' && activeSection !== 'technical-support' && (
                 <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-900">قسم {activeSection}</h2>
                   <Card>
                     <CardContent className="p-6">
-                      <p className="text-gray-600">محتوى هذا القسم سيتم إضافته قريباً</p>
+                      <p className="text-sm text-gray-600 mb-4">محتوى القسم قيد التطوير</p>
+                      <div className="text-center p-8 bg-gray-50 rounded-lg">
+                        <p className="text-gray-600">المحتوى سيتم إضافته قريباً</p>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -8646,5 +13126,22 @@ const EnhancedMerchantDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogo
     </div>
   );
 };
+
+const MapClickHandler: React.FC<{ setLogisticsForm: React.Dispatch<React.SetStateAction<any>>, logisticsForm: any }> = ({ setLogisticsForm, logisticsForm }) => {
+  useMapEvents({
+    click: (e) => {
+      const { lat, lng } = e.latlng;
+      if (setLogisticsForm) {
+        setLogisticsForm({
+          ...logisticsForm,
+          lat: lat.toString(),
+          lng: lng.toString()
+        });
+      }
+    },
+  });
+  return null;
+};
+
 
 export default EnhancedMerchantDashboard;

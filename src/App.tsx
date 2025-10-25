@@ -866,7 +866,7 @@ export default function Home() {
   // عرض النافذة الترحيبية في كل مرة يتم فتح المنصة (لأغراض التسويق وتشجيع الاشتراك)
   useEffect(() => {
     // إزالة التحقق من localStorage لجعل النافذة تظهر في كل مرة
-    setTimeout(() => setShowWelcomePopup(true), 1000);
+    setShowWelcomePopup(true);
   }, []);
 
   // استرداد البيانات المحفوظة عند تحميل التطبيق

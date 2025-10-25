@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle, Loader2, MapPin, Navigation } from 'lucide-react';
 import { getCityAreas, getCityById, libyanCities } from '@/data/libya/cities/cities';
 import type { Area, City } from '@/data/libya/cities/cities';
+import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 interface LocationData {
   latitude: number;
@@ -42,7 +45,7 @@ const CityAreaSelector: React.FC<CityAreaSelectorProps> = ({
   useEffect(() => {
     if (selectedCity) {
       const areas = getCityAreas(selectedCity);
-      
+
       // تحديث المناطق بشكل آمن
       setAvailableAreas(prev => {
         // تحقق من أن المناطق تغيرت فعلاً
@@ -51,18 +54,27 @@ const CityAreaSelector: React.FC<CityAreaSelectorProps> = ({
         }
         return areas;
       });
-      
+
       // إذا لم تكن المنطقة المحددة متاحة في المدينة الجديدة، اعيد تعيينها
       if (selectedArea && !areas.find(area => area.id === selectedArea)) {
-        setTimeout(() => onAreaChange(''), 100); // تأخير بسيط لمنع التداخل
+        onAreaChange('');
       }
     } else {
       setAvailableAreas([]);
       if (selectedArea) {
-        setTimeout(() => onAreaChange(''), 100);
+        onAreaChange('');
       }
     }
   }, [selectedCity, selectedArea, onAreaChange]);
+
+  // إصلاح أيقونة Leaflet
+  useEffect(() => {
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-shadow.png',
+    });
+  }, []);
 
   const handleCityChange = (cityId: string) => {
     // منع إعادة التحميل
@@ -276,6 +288,23 @@ const CityAreaSelector: React.FC<CityAreaSelectorProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* عرض الخريطة */}
+        {currentLocation && (
+          <div className="col-span-full mt-4">
+            <MapContainer center={[currentLocation.latitude, currentLocation.longitude]} zoom={13} style={{ height: '300px', width: '100%' }}>
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+              <Marker position={[currentLocation.latitude, currentLocation.longitude]}>
+                <Popup>
+                  موقعك: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
+                </Popup>
+              </Marker>
+            </MapContainer>
           </div>
         )}
 
